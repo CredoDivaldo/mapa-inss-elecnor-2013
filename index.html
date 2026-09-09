@@ -18,14 +18,15 @@
       --mute: #8a7d6c;
       --miss: #c44732;
       --ok: #2f7a4a;
-      --slit: 56px;
+      --slit: 36px;
+      --veil: 0.82;
     }
     * { box-sizing: border-box; }
     html, body { margin: 0; height: 100%; background: var(--chassis); color: var(--paper); }
     body {
       font-family: "Atkinson Hyperlegible", sans-serif;
       display: grid;
-      grid-template-rows: 48px 1fr 168px 28px;
+      grid-template-rows: 48px 42px 1fr 188px 28px;
       min-height: 100dvh;
     }
     .stamp {
@@ -71,26 +72,61 @@
       background: var(--platen);
       overflow: hidden;
     }
+    .toolbar {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      padding: 0 12px;
+      overflow-x: auto;
+      border-bottom: 1px solid #3a3229;
+      background: #1b1713;
+      font: 600 11px/1 "Barlow Condensed", sans-serif;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      color: var(--mute);
+    }
+    .toolbar label {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      white-space: nowrap;
+    }
+    .toolbar input[type="range"] {
+      width: 84px;
+      accent-color: var(--brass);
+    }
+    .toolbar .val { color: var(--paper); min-width: 2.8em; }
+    .toolbar button {
+      height: 26px;
+      border: 1px solid #5a4c3c;
+      background: #2a241e;
+      color: var(--paper);
+      font: 600 11px/1 "Barlow Condensed", sans-serif;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      padding: 0 8px;
+      cursor: pointer;
+    }
     .well {
       position: absolute;
       inset: 0;
       overflow: hidden;
-      cursor: ns-resize;
+      cursor: grab;
     }
+    .well.drag { cursor: grabbing; }
     .scan {
       position: absolute;
-      left: 50%;
-      transform: translateX(-50%);
-      height: auto;
-      max-width: 96%;
+      left: 0;
+      top: 0;
       display: block;
       user-select: none;
       pointer-events: none;
+      will-change: transform;
     }
     .veil {
       position: absolute;
       left: 0; right: 0;
-      background: rgba(12, 9, 6, 0.88);
+      background: rgba(12, 9, 6, var(--veil, 0.82));
       pointer-events: none;
     }
     .veil.top { top: 0; }
@@ -156,6 +192,7 @@
       display: flex;
       gap: 8px;
       align-items: center;
+      flex-wrap: wrap;
     }
     .actions button, .actions select {
       height: 32px;
@@ -229,10 +266,22 @@
     <nav class="months" id="months" aria-label="Meses de 2013"></nav>
     <div class="stats">
       <span>Linha <b id="pos">0/0</b></span>
+      <span>Pág. <b id="pag">0/0</b></span>
       <span class="ok">NISS <b id="nissOk">0</b></span>
       <span class="miss">sem NISS <b id="nissMiss">0</b></span>
     </div>
   </header>
+
+  <div class="toolbar" id="toolbar">
+    <label>Zoom <input id="v-zoom" type="range" min="90" max="320" value="155" /><span class="val" id="v-zoom-v">155%</span></label>
+    <label>Corte E <input id="v-cropL" type="range" min="0" max="40" value="6" /><span class="val" id="v-cropL-v">6%</span></label>
+    <label>Corte D <input id="v-cropR" type="range" min="0" max="45" value="26" /><span class="val" id="v-cropR-v">26%</span></label>
+    <label>Inclinar <input id="v-rot" type="range" min="-8" max="8" step="0.1" value="0" /><span class="val" id="v-rot-v">0°</span></label>
+    <label>Túnel <input id="v-slitH" type="range" min="22" max="90" value="36" /><span class="val" id="v-slitH-v">36</span></label>
+    <label>Posição <input id="v-slitTop" type="range" min="22" max="72" value="52" /><span class="val" id="v-slitTop-v">52%</span></label>
+    <label>Máscara <input id="v-veil" type="range" min="30" max="95" value="82" /><span class="val" id="v-veil-v">82%</span></label>
+    <button type="button" id="btn-reset-view">Reset vista</button>
+  </div>
 
   <div class="well-wrap">
     <div class="well" id="well">
@@ -246,7 +295,7 @@
   <section class="editor" id="editor">
     <div class="field niss">
       <label for="f-niss">Inscrição INSS</label>
-      <input id="f-niss" class="mono" data-col="niss" autocomplete="off" list="niss-list" />
+      <input id="f-niss" class="mono" data-col="niss" autocomplete="off" list="niss-list" autofocus />
     </div>
     <div class="field nome">
       <label for="f-nome">Nome</label>
@@ -267,6 +316,11 @@
     <div class="actions">
       <button type="button" id="btn-prev">↑ Anterior</button>
       <button type="button" id="btn-next">↓ Seguinte</button>
+      <button type="button" id="btn-page-prev">« Página</button>
+      <button type="button" id="btn-page-next">Página »</button>
+      <button type="button" id="btn-ins-above">+ Linha acima</button>
+      <button type="button" id="btn-ins-below">+ Linha abaixo</button>
+      <button type="button" id="btn-del">Apagar linha</button>
       <button type="button" class="primary" id="btn-xlsx">Gerar Excel TPA</button>
       <button type="button" id="btn-discard">Descartar rascunho</button>
       <span class="draft" id="draft" hidden>Rascunho neste computador</span>
@@ -274,7 +328,7 @@
   </section>
 
   <footer>
-    <span><kbd>↑</kbd><kbd>↓</kbd> linha · <kbd>←</kbd><kbd>→</kbd> coluna · escrever substitui · <kbd>Shift</kbd> ver página · <kbd>Enter</kbd> avança</span>
+    <span><kbd>↑</kbd><kbd>↓</kbd> linha · <kbd>PgUp</kbd><kbd>PgDn</kbd> página · <kbd>Ctrl</kbd>+<kbd>↑</kbd>/<kbd>↓</kbd> inserir · arrastar = alinhar · roda = zoom · <kbd>Shift</kbd> ver página</span>
     <span id="filehint">O Excel sai alfabético. A tabela no ecrã segue o PDF.</span>
   </footer>
   <datalist id="niss-list"></datalist>

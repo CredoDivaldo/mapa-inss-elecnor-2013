@@ -61,12 +61,18 @@ HEADER_RE = re.compile(
     re.I,
 )
 JUNK_ROW_RE = re.compile(
-    r"SOBRE O TOTAL|SOBREO TOTAL|TOTAL A DEPOSITAR|TOTAL DEPOSITAR|"
-    r"ILIQUIDOS|VALOR A PAGAR|TOTAL DE TRABALHADO|TOTAL QUE AFECTA|"
-    r"RESUMO\b|PARASCREDITO|GUIA DE",
+    r"SOBRE O TOTAL|SOBREO TOTAL|SOBRA TOTAL|SOTERO TOTAL|"
+    r"TOTAL A DEPOSITAR|TOTAL DEPOSITAR|TOTALA DEPOSIT|"
+    r"ILIQUIDOS|ILLQUIDOS|VALOR A PAGAR|TOTAL DE TRABALHADO|TOTAL QUE AFECTA|"
+    r"RESUMO\b|PARASCREDITO|GUIA DE|ESCRITORIO CENTRAL|"
+    r"ESTALEIRO DE|TOTAL CAMAMA|TOTAL ZANGO|TOTAL CACUACO|TOTAL LT\b|"
+    r"TOTAL ESTRUTURA|TOTAL AHE|TOTAL ECO",
     re.I,
 )
-TOTAL_RE = re.compile(r"^\s*(TOTAL|RESUMO)\b", re.I)
+TOTAL_RE = re.compile(
+    r"^\s*(TOTAL|TOTALL|TOTS|TOIZANGO|ROTAL|RATAL|RESUMO|TOM ESTALEIRO|TOR ESTALEIRO)\b",
+    re.I,
+)
 MONEY_RE = re.compile(
     r"\d{1,3}(?:[.\s]\d{3})+,\d{2}"
     r"|\d{1,6},\d{2}"
@@ -441,6 +447,19 @@ def pick_sal_rem_tot(amounts: list[float]) -> tuple[float | None, float | None, 
     return amounts[0], amounts[1] if len(amounts) > 1 else 0.0, amounts[2] if len(amounts) > 2 else amounts[0]
 
 
+def is_total_nome(nome: str) -> bool:
+    n = norm(nome)
+    if not n:
+        return False
+    if TOTAL_RE.search(n) or JUNK_ROW_RE.search(n):
+        return True
+    if re.search(r"\b(TOTAL|TOTALL|TOTS|DEPOSITAR|ILIQUIDOS|ILLQUIDOS|RESUMO)\b", n):
+        return True
+    if re.match(r"^(TOT|TOM |TOR |TOI|ROTAL|RATAL|ETEATAL)", n):
+        return True
+    return False
+
+
 def parse_row_text(text: str) -> dict | None:
     raw = " ".join(text.split())
     if not raw:
@@ -448,9 +467,7 @@ def parse_row_text(text: str) -> dict | None:
     n = norm(raw)
     if HEADER_RE.search(n) or n.startswith("N NOME") or "CATEGORIA OCUPACIONAL" in n:
         return None
-    if TOTAL_RE.search(raw) or n.startswith("TOTAL ") or JUNK_ROW_RE.search(raw):
-        return None
-    if "VALOR A PAGAR" in n or n.startswith("RESUMO"):
+    if is_total_nome(raw) or n.startswith("TOTAL ") or "VALOR A PAGAR" in n:
         return None
 
     moneys = [parse_money(m) for m in MONEY_RE.findall(raw)]
