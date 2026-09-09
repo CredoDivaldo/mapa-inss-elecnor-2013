@@ -1,0 +1,4 @@
+.DS_Store
+pipeline/__pycache__/
+**/*.pyc
+crops/

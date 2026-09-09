@@ -1,0 +1,287 @@
+<!DOCTYPE html>
+<html lang="pt">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Mapa INSS — Elecnor 2013</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:ital,wght@0,400;0,700;1,400&family=Barlow+Condensed:wght@500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      --chassis: #14110e;
+      --platen: #221d18;
+      --brass: #d56a1f;
+      --stamp: #1f8c86;
+      --paper: #efe6d4;
+      --ink: #1c140e;
+      --mute: #8a7d6c;
+      --miss: #c44732;
+      --ok: #2f7a4a;
+      --slit: 56px;
+    }
+    * { box-sizing: border-box; }
+    html, body { margin: 0; height: 100%; background: var(--chassis); color: var(--paper); }
+    body {
+      font-family: "Atkinson Hyperlegible", sans-serif;
+      display: grid;
+      grid-template-rows: 48px 1fr 168px 28px;
+      min-height: 100dvh;
+    }
+    .stamp {
+      font-family: "Barlow Condensed", sans-serif;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+    }
+    .mono { font-family: "IBM Plex Mono", ui-monospace, monospace; }
+    header {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      padding: 0 16px;
+      border-bottom: 1px solid #3a3229;
+      background: #181410;
+    }
+    header .brand { font-size: 15px; font-weight: 700; color: var(--brass); }
+    header .sub { color: var(--mute); font-size: 12px; }
+    header .stats { margin-left: auto; display: flex; gap: 18px; font-size: 13px; }
+    header .stats b { color: var(--paper); }
+    header .miss b { color: var(--miss); }
+    header .ok b { color: #7dcca0; }
+    .months {
+      display: flex;
+      gap: 2px;
+      overflow-x: auto;
+    }
+    .months button {
+      background: transparent;
+      border: 0;
+      color: var(--mute);
+      font: 600 12px/1 "Barlow Condensed", sans-serif;
+      letter-spacing: 0.06em;
+      padding: 8px 9px;
+      cursor: pointer;
+    }
+    .months button[aria-current="true"] {
+      color: var(--chassis);
+      background: var(--brass);
+    }
+    .well-wrap {
+      position: relative;
+      background: var(--platen);
+      overflow: hidden;
+    }
+    .well {
+      position: absolute;
+      inset: 0;
+      overflow: hidden;
+      cursor: ns-resize;
+    }
+    .scan {
+      position: absolute;
+      left: 50%;
+      transform: translateX(-50%);
+      height: auto;
+      max-width: 96%;
+      display: block;
+      user-select: none;
+      pointer-events: none;
+    }
+    .veil {
+      position: absolute;
+      left: 0; right: 0;
+      background: rgba(12, 9, 6, 0.88);
+      pointer-events: none;
+    }
+    .veil.top { top: 0; }
+    .veil.bot { bottom: 0; }
+    .slit {
+      position: absolute;
+      left: 0; right: 0;
+      height: var(--slit);
+      border-top: 2px solid var(--brass);
+      border-bottom: 2px solid var(--brass);
+      box-shadow: 0 0 0 1px rgba(213, 106, 31, 0.35), inset 0 0 40px rgba(213, 106, 31, 0.08);
+      pointer-events: none;
+    }
+    .slit-tag {
+      position: absolute;
+      right: 12px;
+      top: 50%;
+      transform: translateY(-50%);
+      background: var(--brass);
+      color: var(--chassis);
+      font: 700 11px/1 "Barlow Condensed", sans-serif;
+      letter-spacing: 0.12em;
+      padding: 4px 7px;
+      pointer-events: none;
+    }
+    .peek .veil { opacity: 0; }
+    .peek .slit { opacity: 0.25; }
+    .editor {
+      display: grid;
+      grid-template-columns: 132px 1.6fr 1fr 1fr 1fr;
+      gap: 8px;
+      padding: 12px 16px 8px;
+      background: #1b1713;
+      border-top: 1px solid #3a3229;
+      align-items: end;
+    }
+    .field label {
+      display: block;
+      font: 600 11px/1 "Barlow Condensed", sans-serif;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: var(--mute);
+      margin-bottom: 6px;
+    }
+    .field input {
+      width: 100%;
+      height: 44px;
+      border: 1px solid #5a4c3c;
+      background: var(--paper);
+      color: var(--ink);
+      font-size: 16px;
+      padding: 0 10px;
+      outline: none;
+    }
+    .field input:focus {
+      border-color: var(--brass);
+      box-shadow: 0 0 0 2px rgba(213, 106, 31, 0.35);
+    }
+    .field.niss input.empty { box-shadow: inset 3px 0 0 var(--miss); }
+    .field.tot input { background: #e4d8c0; }
+    .actions {
+      grid-column: 1 / -1;
+      display: flex;
+      gap: 8px;
+      align-items: center;
+    }
+    .actions button, .actions select {
+      height: 32px;
+      border: 1px solid #5a4c3c;
+      background: #2a241e;
+      color: var(--paper);
+      font: 600 12px/1 "Barlow Condensed", sans-serif;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      padding: 0 12px;
+      cursor: pointer;
+    }
+    .actions button.primary {
+      background: var(--brass);
+      color: var(--chassis);
+      border-color: var(--brass);
+    }
+    .draft {
+      color: var(--brass);
+      font-size: 12px;
+    }
+    footer {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 16px;
+      font-size: 11px;
+      color: var(--mute);
+      border-top: 1px solid #3a3229;
+      background: #181410;
+    }
+    kbd {
+      font-family: "IBM Plex Mono", monospace;
+      border: 1px solid #5a4c3c;
+      padding: 0 4px;
+      color: var(--paper);
+    }
+    .toast {
+      position: fixed;
+      bottom: 40px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: var(--paper);
+      color: var(--ink);
+      padding: 10px 14px;
+      font-size: 14px;
+      display: none;
+      z-index: 20;
+    }
+    .toast.show { display: block; }
+    @media (max-width: 800px) {
+      body { grid-template-rows: auto 1fr auto auto; }
+      .editor { grid-template-columns: 1fr 1fr; }
+      .field.nome { grid-column: 1 / -1; }
+    }
+  </style>
+</head>
+<body>
+  <!--
+    THESIS: a light-table slit over the scanned payroll, not a dashboard of cards.
+    OWN-WORLD: dark timber platen, brass slit, stamp-pad orange, paper editor.
+    STORY: a colleague checks one worker against the original page, corrects, exports TPA Excel.
+    FIRST VIEWPORT: the scan fills the well with a brass slit on row 1; the five cells wait below.
+    FORM: light-table / tesouraria desk. FINISH: unreviewed and undocumented is unfinished.
+  -->
+  <header>
+    <div>
+      <div class="stamp brand">Mapa INSS · Elecnor</div>
+      <div class="sub" id="empresa">NISS 13067</div>
+    </div>
+    <nav class="months" id="months" aria-label="Meses de 2013"></nav>
+    <div class="stats">
+      <span>Linha <b id="pos">0/0</b></span>
+      <span class="ok">NISS <b id="nissOk">0</b></span>
+      <span class="miss">sem NISS <b id="nissMiss">0</b></span>
+    </div>
+  </header>
+
+  <div class="well-wrap">
+    <div class="well" id="well">
+      <img class="scan" id="scan" alt="Página do mapa original" />
+      <div class="veil top" id="veilTop"></div>
+      <div class="slit" id="slit"><span class="slit-tag" id="slitTag">001</span></div>
+      <div class="veil bot" id="veilBot"></div>
+    </div>
+  </div>
+
+  <section class="editor" id="editor">
+    <div class="field niss">
+      <label for="f-niss">Inscrição INSS</label>
+      <input id="f-niss" class="mono" data-col="niss" autocomplete="off" list="niss-list" />
+    </div>
+    <div class="field nome">
+      <label for="f-nome">Nome</label>
+      <input id="f-nome" data-col="nome" autocomplete="off" />
+    </div>
+    <div class="field">
+      <label for="f-sal">Salário base</label>
+      <input id="f-sal" class="mono" data-col="sal" inputmode="decimal" />
+    </div>
+    <div class="field">
+      <label for="f-rem">Remunerações adicionais</label>
+      <input id="f-rem" class="mono" data-col="rem" inputmode="decimal" />
+    </div>
+    <div class="field tot">
+      <label for="f-tot">Total</label>
+      <input id="f-tot" class="mono" data-col="tot" readonly />
+    </div>
+    <div class="actions">
+      <button type="button" id="btn-prev">↑ Anterior</button>
+      <button type="button" id="btn-next">↓ Seguinte</button>
+      <button type="button" class="primary" id="btn-xlsx">Gerar Excel TPA</button>
+      <button type="button" id="btn-discard">Descartar rascunho</button>
+      <span class="draft" id="draft" hidden>Rascunho neste computador</span>
+    </div>
+  </section>
+
+  <footer>
+    <span><kbd>↑</kbd><kbd>↓</kbd> linha · <kbd>←</kbd><kbd>→</kbd> coluna · escrever substitui · <kbd>Shift</kbd> ver página · <kbd>Enter</kbd> avança</span>
+    <span id="filehint">O Excel sai alfabético. A tabela no ecrã segue o PDF.</span>
+  </footer>
+  <datalist id="niss-list"></datalist>
+  <div class="toast" id="toast"></div>
+
+  <script src="data/config.js"></script>
+  <script src="js/xlsx.full.min.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>
