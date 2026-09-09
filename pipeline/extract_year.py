@@ -188,20 +188,35 @@ def load_niss_maps() -> dict[str, str]:
     return mapping
 
 
+PARTICLES = {"DA", "DO", "DE", "DOS", "DAS", "E"}
+CAT_PREFIX = (
+    "EMPREG", "MPREG", "MOTORIST", "ELETRIC", "FLETRIC", "ELECTRIC",
+    "MONTAD", "MECAN", "PEDREIR", "SERRALH", "CARPINT", "AJUDANT",
+    "VIGILANT", "AUXILIAR", "ADMINIST", "OPERAD", "ENCARREG", "TECNIC",
+    "SOLDAD", "CANALIZ", "PINTOR", "PEDREIR",
+)
+
+
+def is_cat_tok(t: str) -> bool:
+    k = norm(t)
+    if k in PARTICLES:
+        return False
+    if k in STOP or k in LIXO:
+        return True
+    return any(k.startswith(p) for p in CAT_PREFIX)
+
+
 def limpar_nome(s: str) -> str:
-    t = norm(s)
+    t = re.sub(r"\s+", " ", str(s)).strip().upper()
     t = re.sub(r"\b\d+\b", " ", t)
-    toks = [x for x in t.split() if x not in LIXO and not re.match(r"^[\W_]+$", x)]
-    while toks and (toks[0] in STOP or toks[0] in LIXO or len(toks[0]) <= 1):
+    toks = [x for x in t.split() if not re.match(r"^[\W_]+$", x)]
+    while toks and (is_cat_tok(toks[0]) or len(norm(toks[0])) <= 1):
         toks.pop(0)
-    # drop trailing job title
-    while toks and (toks[-1] in STOP or len(toks[-1]) <= 1):
+    while toks and (is_cat_tok(toks[-1]) or len(norm(toks[-1])) <= 1):
         toks.pop()
-    # keep inner stop-words that belong to names (DA, DO, DE)
     cleaned = []
     for x in toks:
-        if x in STOP and x not in {"DA", "DO", "DE", "DOS", "DAS", "E"}:
-            # job title in the middle — stop before it if we already have 2 tokens
+        if is_cat_tok(x):
             if len(cleaned) >= 2:
                 break
             continue
@@ -220,7 +235,7 @@ def build_niss_index(vin_norm: dict[str, str]) -> dict[str, list[tuple[str, str,
 
 
 def casar_niss(nome: str, vin_norm: dict[str, str], vin_index: dict) -> str:
-    toks = limpar_nome(nome).split()
+    toks = norm(limpar_nome(nome)).split()
     if len(toks) < 2:
         return ""
     key = " ".join(toks)
@@ -501,30 +516,54 @@ def parse_row_text(text: str) -> dict | None:
     }
 
 
+def name_x_range(gray: np.ndarray) -> tuple[int, int]:
+    w = gray.shape[1]
+    verts = count_axis_lines(gray, False)
+    xs = sorted(x for x in verts if 0.02 * w < x < 0.95 * w)
+    if len(xs) >= 3 and (xs[1] - xs[0]) < 0.14 * w:
+        return int(xs[1]), int(xs[2])
+    if len(xs) >= 2:
+        return int(xs[0]), int(xs[1])
+    return int(0.05 * w), int(0.42 * w)
+
+
 def extract_table_page(gray: np.ndarray, page_index: int, tag: str) -> list[dict]:
     bands = row_bands(gray)
+    nx0, nx1 = name_x_range(gray)
     rows = []
     for i, (y0, y1) in enumerate(bands):
         pad = 1
         crop = gray[max(0, y0 + pad) : y1 - pad, :]
         if crop.size == 0 or crop.shape[0] < 10:
             continue
-        # upscale thin rows
-        if crop.shape[0] < 36:
+        scale = 2 if crop.shape[0] < 36 else 1
+        if scale != 1:
             crop = cv2.resize(
                 crop,
-                (crop.shape[1] * 2, crop.shape[0] * 2),
+                (crop.shape[1] * scale, crop.shape[0] * scale),
                 interpolation=cv2.INTER_CUBIC,
             )
+        x0 = max(0, nx0 * scale)
+        x1 = min(crop.shape[1], nx1 * scale)
+        name_crop = crop[:, x0:x1] if x1 > x0 + 10 else crop
         crop_path = CROP_DIR / f"{tag}_r{i:03d}.png"
+        name_path = CROP_DIR / f"{tag}_n{i:03d}.png"
         save_png(crop, crop_path)
-        text = tess(crop_path, psm=7)
-        try:
-            crop_path.unlink()
-        except OSError:
-            pass
-        parsed = parse_row_text(text)
+        save_png(name_crop, name_path)
+        full = tess(crop_path, psm=7)
+        nome_txt = tess(name_path, psm=7)
+        for p in (crop_path, name_path):
+            try:
+                p.unlink()
+            except OSError:
+                pass
+        parsed = parse_row_text(full)
         if not parsed:
+            continue
+        nome = limpar_nome(nome_txt)
+        if len(nome.split()) >= 2:
+            parsed["nome"] = nome
+        if is_total_nome(parsed["nome"]):
             continue
         parsed["page"] = page_index
         parsed["y"] = round(((y0 + y1) / 2) / gray.shape[0], 4)

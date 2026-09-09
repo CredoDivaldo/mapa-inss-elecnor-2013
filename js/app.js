@@ -42,24 +42,151 @@
 
   const num = (v) => {
     if (v == null || v === "") return 0;
-    const n = Number(String(v).replace(/\s/g, "").replace(",", "."));
+    let s = String(v).replace(/\s/g, "");
+    if (s.includes(",") && s.includes(".")) s = s.replace(/\./g, "").replace(",", ".");
+    else if (s.includes(",")) s = s.replace(",", ".");
+    const n = Number(s);
     return Number.isFinite(n) ? n : 0;
+  };
+
+  const fold = (s) =>
+    String(s || "")
+      .normalize("NFKD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .toUpperCase()
+      .replace(/[^A-Z0-9 ]+/g, " ")
+      .replace(/\s+/g, " ")
+      .trim();
+
+  const formatKz = (v) => {
+    if (v == null || v === "") return "";
+    const n = typeof v === "number" ? v : num(v);
+    if (!Number.isFinite(n)) return "";
+    const [int, dec] = n.toFixed(2).split(".");
+    return int.replace(/\B(?=(\d{3})+(?!\d))/g, ".") + "," + dec;
+  };
+
+  const digitsToKz = (digits) => {
+    const d = String(digits || "").replace(/\D/g, "");
+    if (!d) return "";
+    return formatKz(Number(d) / 100);
+  };
+
+  const kzToStore = (display) => {
+    const d = String(display || "").replace(/\D/g, "");
+    if (!d) return "";
+    return (Number(d) / 100).toFixed(2);
+  };
+
+  const toPortalName = (s) => String(s || "").toLocaleUpperCase("pt-PT");
+
+  const relacao = () => window.INSS_RELACAO || [];
+
+  const searchRelacao = (q, by) => {
+    if (by === "niss") {
+      const d = String(q || "").replace(/\D/g, "");
+      if (d.length < 2) return [];
+      const out = [];
+      for (const r of relacao()) {
+        if (String(r.niss).startsWith(d)) {
+          out.push(r);
+          if (out.length >= 8) break;
+        }
+      }
+      return out;
+    }
+    const query = fold(q);
+    if (query.length < 2) return [];
+    const toks = query.split(" ");
+    const exact = [];
+    const rest = [];
+    for (const r of relacao()) {
+      if (r.k === query) exact.push(r);
+      else if (toks.every((t) => r.k.includes(t))) rest.push(r);
+      if (exact.length + rest.length >= 24) break;
+    }
+    return exact.concat(rest).slice(0, 8);
+  };
+
+  let sugIndex = { niss: -1, nome: -1 };
+
+  const hideSuggest = (which) => {
+    ["niss", "nome"].forEach((k) => {
+      if (which && k !== which) return;
+      const box = $(`sug-${k}`);
+      box.hidden = true;
+      box.innerHTML = "";
+      sugIndex[k] = -1;
+    });
+  };
+
+  const pickRelacao = (item) => {
+    const row = state.rows[state.i];
+    if (!row || !item) return;
+    row.niss = item.niss;
+    row.nome = item.nome;
+    $("f-niss").value = item.niss;
+    $("f-nome").value = item.nome;
+    $("f-niss").classList.toggle("empty", false);
+    hideSuggest();
+    stats();
+    scheduleSave();
+    focusField();
+  };
+
+  const renderSuggest = (kind, items) => {
+    const box = $(`sug-${kind}`);
+    if (!items.length) {
+      hideSuggest(kind);
+      return;
+    }
+    box.hidden = false;
+    box.innerHTML = items
+      .map((r, i) => {
+        const main = kind === "nome" ? r.nome : r.niss;
+        const sub = kind === "nome" ? r.niss : r.nome;
+        return `<button type="button" data-i="${i}" ${i === 0 ? 'aria-selected="true"' : ""}><span>${main}</span><small>${sub}</small></button>`;
+      })
+      .join("");
+    sugIndex[kind] = 0;
+    box.querySelectorAll("button").forEach((btn) => {
+      btn.addEventListener("mousedown", (e) => {
+        e.preventDefault();
+        pickRelacao(items[Number(btn.dataset.i)]);
+      });
+    });
+  };
+
+  const autoFillFromNome = (nome) => {
+    const q = fold(nome);
+    if (q.split(" ").length < 2) return;
+    const hits = relacao().filter((r) => r.k === q);
+    if (hits.length === 1) {
+      const row = state.rows[state.i];
+      if (row && !row.niss) {
+        row.niss = hits[0].niss;
+        $("f-niss").value = hits[0].niss;
+        $("f-niss").classList.toggle("empty", false);
+        if (hits[0].nome) {
+          row.nome = hits[0].nome;
+          $("f-nome").value = hits[0].nome;
+        }
+      }
+    }
   };
 
   const storageKey = () => `inss-${state.month.id}`;
   const viewKey = () => `inss-view-${state.month.id}`;
 
   const isTotalRow = (row) => {
-    const n = String(row.nome || "")
-      .normalize("NFKD")
-      .replace(/[\u0300-\u036f]/g, "")
-      .toUpperCase()
-      .replace(/^[^\w]+/, "")
-      .trim();
+    const n = fold(row && row.nome);
     if (!n) return false;
-    if (/^(TOTAL|TOTALL|TOTS|TOIZANGO|ROTAL|RATAL|RESUMO|TOM |TOR |TOI|ETEATAL|TOTAIG)/.test(n)) return true;
+    if (/^(TOTAL|TOTALL|TOTS|TOIZANGO|ROTAL|RATAL|RESUMO|TOM |TOR |TOI|ETEATAL|TOTAIG|TOTA )/.test(n)) return true;
     if (/\b(TOTAL|DEPOSITAR|ILIQUIDOS|ILLQUIDOS|RESUMO|ESCRITORIO CENTRAL)\b/.test(n)) return true;
     if (/SOBRA TOTAL|SOBREO TOTAL|SOTERO TOTAL|ESTALEIRO DE/.test(n)) return true;
+    if (/\b(ESCRITORIO|ESTALEIRO|CAMAMA|ZANGO|CACUACO|CAMBAMBE)\b/.test(n) && n.split(" ").length <= 6) {
+      if (/^(TOT|TOM|TOR|TOI|PO |ETEATAL)/.test(n) || /\bTOTAL\b/.test(n)) return true;
+    }
     return false;
   };
 
@@ -217,10 +344,11 @@
       return;
     }
     $("f-niss").value = row.niss || "";
-    $("f-nome").value = row.nome || "";
-    $("f-sal").value = row.sal || "";
-    $("f-rem").value = row.rem || "";
-    $("f-tot").value = row.tot || "";
+    $("f-nome").value = toPortalName(row.nome || "");
+    $("f-sal").value = formatKz(row.sal);
+    $("f-rem").value = formatKz(row.rem === "" || row.rem == null ? "" : row.rem);
+    $("f-tot").value = formatKz(row.tot);
+    hideSuggest();
     $("f-niss").classList.toggle("empty", !row.niss);
     const page = state.month.pages[row.page] || state.month.pages[0];
     const img = $("scan");
@@ -247,7 +375,7 @@
     row[col] = value;
     if (col === "sal" || col === "rem") {
       row.tot = (num(row.sal) + num(row.rem)).toFixed(2);
-      $("f-tot").value = row.tot;
+      $("f-tot").value = formatKz(row.tot);
     }
     $("f-niss").classList.toggle("empty", !row.niss);
     stats();
@@ -256,7 +384,13 @@
 
   const goto = (i) => {
     if (!state.rows.length) return;
-    state.i = Math.max(0, Math.min(state.rows.length - 1, i));
+    const dir = i >= state.i ? 1 : -1;
+    let j = Math.max(0, Math.min(state.rows.length - 1, i));
+    while (j >= 0 && j < state.rows.length && isTotalRow(state.rows[j])) {
+      j += dir;
+    }
+    if (j < 0 || j >= state.rows.length) return;
+    state.i = j;
     showRow();
     scheduleSave();
   };
@@ -350,20 +484,8 @@
       $("draft").hidden = true;
       state.i = 0;
     }
-    state.rows = rows;
+    state.rows = rows.map((r) => ({ ...r, nome: toPortalName(r.nome) }));
     state.col = 0;
-    const list = $("niss-list");
-    list.innerHTML = "";
-    const seen = new Set();
-    for (const r of rows) {
-      if (r.niss && !seen.has(r.niss)) {
-        seen.add(r.niss);
-        const opt = document.createElement("option");
-        opt.value = r.niss;
-        opt.label = r.nome;
-        list.appendChild(opt);
-      }
-    }
     showRow();
   };
 
@@ -391,7 +513,7 @@
     const m = state.month;
     const rows = state.rows
       .filter((r) => (r.nome || "").trim() && !isTotalRow(r))
-      .sort((a, b) => a.nome.localeCompare(b.nome, "pt", { sensitivity: "base" }));
+      .sort((a, b) => fold(a.nome).localeCompare(fold(b.nome), "pt"));
     const aoa = [];
     aoa[0] = ["Folha de Remuneração Normal | Complementar"];
     aoa[1] = [" Mês de referência: ", `${m.ano}-${String(m.mes).padStart(2, "0")}`];
@@ -406,7 +528,7 @@
       const excelRow = 11 + idx;
       aoa[10 + idx] = [
         r.niss || "",
-        r.nome,
+        toPortalName(r.nome),
         num(r.sal),
         num(r.rem),
         { t: "n", f: `C${excelRow}+D${excelRow}` },
@@ -497,15 +619,63 @@
     );
   };
 
+  const sugKind = () => {
+    if (!$("sug-nome").hidden) return "nome";
+    if (!$("sug-niss").hidden) return "niss";
+    return null;
+  };
+
+  const moveSuggest = (kind, dir) => {
+    const box = $(`sug-${kind}`);
+    const btns = [...box.querySelectorAll("button")];
+    if (!btns.length) return;
+    sugIndex[kind] = (sugIndex[kind] + dir + btns.length) % btns.length;
+    btns.forEach((b, i) => b.setAttribute("aria-selected", i === sugIndex[kind] ? "true" : "false"));
+    btns[sugIndex[kind]].scrollIntoView({ block: "nearest" });
+  };
+
   const bind = () => {
-    ALL.forEach((col, idx) => {
+    $("f-niss").addEventListener("focus", () => {
+      state.col = 0;
+      $("f-niss").select();
+    });
+    $("f-niss").addEventListener("blur", () => setTimeout(() => hideSuggest("niss"), 150));
+    $("f-niss").addEventListener("input", () => {
+      const v = $("f-niss").value.replace(/\D/g, "");
+      $("f-niss").value = v;
+      applyField("niss", v);
+      const items = searchRelacao(v, "niss");
+      renderSuggest("niss", items);
+      if (items.length === 1 && v.length >= 5 && items[0].niss === v) pickRelacao(items[0]);
+    });
+
+    $("f-nome").addEventListener("focus", () => {
+      state.col = 1;
+      $("f-nome").select();
+    });
+    $("f-nome").addEventListener("blur", () => setTimeout(() => hideSuggest("nome"), 150));
+    $("f-nome").addEventListener("input", () => {
+      const up = toPortalName($("f-nome").value);
+      $("f-nome").value = up;
+      applyField("nome", up);
+      const items = searchRelacao(up, "nome");
+      renderSuggest("nome", items);
+      autoFillFromNome(up);
+    });
+
+    ["sal", "rem"].forEach((col) => {
       const el = $(`f-${col}`);
       el.addEventListener("focus", () => {
-        if (col !== "tot") state.col = Math.max(0, COLS.indexOf(col));
+        state.col = COLS.indexOf(col);
         el.select();
       });
-      el.addEventListener("input", () => applyField(col, el.value));
+      el.addEventListener("input", () => {
+        const formatted = digitsToKz(el.value);
+        el.value = formatted;
+        applyField(col, kzToStore(formatted));
+      });
     });
+    $("f-tot").addEventListener("focus", () => $("f-tot").select());
     $("btn-prev").addEventListener("click", () => goto(state.i - 1));
     $("btn-next").addEventListener("click", () => goto(state.i + 1));
     $("btn-page-prev").addEventListener("click", () => gotoPage(-1));
@@ -527,6 +697,30 @@
 
     document.addEventListener("keydown", (e) => {
       if (e.target && e.target.type === "range") return;
+      const kind = sugKind();
+      if (kind && ["ArrowDown", "ArrowUp", "Enter", "Escape", "Tab"].includes(e.key)) {
+        if (e.key === "Escape" || e.key === "Tab") {
+          hideSuggest(kind);
+          if (e.key === "Escape") e.preventDefault();
+          return;
+        }
+        if (e.key === "ArrowDown") {
+          e.preventDefault();
+          moveSuggest(kind, 1);
+          return;
+        }
+        if (e.key === "ArrowUp") {
+          e.preventDefault();
+          moveSuggest(kind, -1);
+          return;
+        }
+        if (e.key === "Enter") {
+          e.preventDefault();
+          const btn = $(`sug-${kind}`).querySelector('button[aria-selected="true"]');
+          if (btn) btn.dispatchEvent(new Event("mousedown"));
+          return;
+        }
+      }
       if (e.key === "Shift" && !e.ctrlKey && !e.metaKey) {
         $("well").classList.add("peek");
         state.peek = true;

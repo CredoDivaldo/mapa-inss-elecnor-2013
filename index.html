@@ -185,8 +185,43 @@
       border-color: var(--brass);
       box-shadow: 0 0 0 2px rgba(213, 106, 31, 0.35);
     }
+    .field { position: relative; }
     .field.niss input.empty { box-shadow: inset 3px 0 0 var(--miss); }
     .field.tot input { background: #e4d8c0; }
+    .suggest {
+      position: absolute;
+      left: 0;
+      right: 0;
+      bottom: calc(100% + 6px);
+      background: var(--paper);
+      color: var(--ink);
+      max-height: 168px;
+      overflow-y: auto;
+      z-index: 40;
+      box-shadow: 0 -10px 28px rgba(0,0,0,0.35);
+      border: 1px solid #5a4c3c;
+    }
+    .suggest[hidden] { display: none; }
+    .suggest button {
+      display: block;
+      width: 100%;
+      text-align: left;
+      border: 0;
+      background: transparent;
+      padding: 8px 10px;
+      font: 13px/1.25 "Atkinson Hyperlegible", sans-serif;
+      color: var(--ink);
+      cursor: pointer;
+    }
+    .suggest button small {
+      display: block;
+      color: #6a5c4c;
+      font-family: "IBM Plex Mono", monospace;
+      font-size: 11px;
+      margin-top: 2px;
+    }
+    .suggest button[aria-selected="true"],
+    .suggest button:hover { background: #e4d8c0; }
     .actions {
       grid-column: 1 / -1;
       display: flex;
@@ -295,19 +330,21 @@
   <section class="editor" id="editor">
     <div class="field niss">
       <label for="f-niss">Inscrição INSS</label>
-      <input id="f-niss" class="mono" data-col="niss" autocomplete="off" list="niss-list" autofocus />
+      <input id="f-niss" class="mono" data-col="niss" autocomplete="off" inputmode="numeric" autofocus />
+      <div class="suggest" id="sug-niss" hidden></div>
     </div>
     <div class="field nome">
       <label for="f-nome">Nome</label>
-      <input id="f-nome" data-col="nome" autocomplete="off" />
+      <input id="f-nome" data-col="nome" autocomplete="off" spellcheck="false" autocapitalize="characters" />
+      <div class="suggest" id="sug-nome" hidden></div>
     </div>
     <div class="field">
       <label for="f-sal">Salário base</label>
-      <input id="f-sal" class="mono" data-col="sal" inputmode="decimal" />
+      <input id="f-sal" class="mono" data-col="sal" inputmode="numeric" />
     </div>
     <div class="field">
       <label for="f-rem">Remunerações adicionais</label>
-      <input id="f-rem" class="mono" data-col="rem" inputmode="decimal" />
+      <input id="f-rem" class="mono" data-col="rem" inputmode="numeric" />
     </div>
     <div class="field tot">
       <label for="f-tot">Total</label>
@@ -331,11 +368,11 @@
     <span><kbd>↑</kbd><kbd>↓</kbd> linha · <kbd>PgUp</kbd><kbd>PgDn</kbd> página · <kbd>Ctrl</kbd>+<kbd>↑</kbd>/<kbd>↓</kbd> inserir · arrastar = alinhar · roda = zoom · <kbd>Shift</kbd> ver página</span>
     <span id="filehint">O Excel sai alfabético. A tabela no ecrã segue o PDF.</span>
   </footer>
-  <datalist id="niss-list"></datalist>
   <div class="toast" id="toast"></div>
 
   <script src="data/config.js"></script>
+  <script src="data/relacao.js"></script>
   <script src="js/xlsx.full.min.js"></script>
-  <script src="js/app.js"></script>
+  <script src="js/app.js?v=4"></script>
 </body>
 </html>
