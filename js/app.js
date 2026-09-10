@@ -556,6 +556,115 @@
     toast(`Gerado ${m.filename} · ${rows.length} trabalhadores`);
   };
 
+  const pad = (s, n) => String(s).slice(0, n).padEnd(n, " ");
+  const digits = (n, w) => String(n).replace(/\D/g, "").padStart(w, "0").slice(-w);
+
+  const txtName = (s) => {
+    const particles = new Set(["DA", "DE", "DO", "DOS", "DAS", "E", "Y", "DEL"]);
+    const folded = fold(s);
+    const titled = folded
+      .split(" ")
+      .filter(Boolean)
+      .map((w, i) => {
+        if (i > 0 && particles.has(w)) return w.toLowerCase();
+        return w.charAt(0) + w.slice(1).toLowerCase();
+      })
+      .join(" ");
+    return pad(titled, 70);
+  };
+
+  const money14 = (v) => {
+    const cents = Math.round(num(v) * 100);
+    if (cents < 0) return "00000000000000";
+    return digits(cents, 14);
+  };
+
+  const generateTxt = () => {
+    const m = state.month;
+    const skipped = [];
+    const rows = state.rows.filter((r) => {
+      if (isTotalRow(r) || !(r.nome || "").trim()) return false;
+      if (!String(r.niss || "").replace(/\D/g, "")) {
+        skipped.push(r.nome);
+        return false;
+      }
+      return true;
+    });
+    rows.sort((a, b) => fold(a.nome).localeCompare(fold(b.nome), "pt"));
+    if (!rows.length) {
+      toast("Nenhum trabalhador com NISS para o TXT.");
+      return;
+    }
+    const dd = "01";
+    const mm = String(m.mes).padStart(2, "0");
+    const yyyy = String(m.ano);
+    const nissEmp = digits(m.niss_empresa, 9);
+    const nif = digits(m.nif, 10);
+    const empresa = pad(
+      String(m.empresa || "")
+        .normalize("NFKD")
+        .replace(/[\u0300-\u036f]/g, "")
+        .toUpperCase(),
+      70
+    );
+    const header =
+      "00" +
+      dd +
+      mm +
+      yyyy +
+      "N" +
+      nissEmp +
+      " ".repeat(20) +
+      nif +
+      " ".repeat(10) +
+      empresa +
+      "00000" +
+      " ".repeat(45);
+    const date = dd + mm + yyyy;
+    let sumA = 0;
+    let sumB = 0;
+    const body = rows.map((r) => {
+      const niss = digits(r.niss, 8);
+      const sal = money14(r.sal);
+      const rem = money14(r.rem);
+      sumA += Number(sal);
+      sumB += Number(rem);
+      return (
+        "100" +
+        niss +
+        " ".repeat(20) +
+        txtName(r.nome) +
+        "00000" +
+        sal +
+        rem +
+        date +
+        " ".repeat(38)
+      );
+    });
+    const trailer =
+      "99" +
+      digits(rows.length, 10) +
+      digits(sumA, 24) +
+      digits(sumB, 14) +
+      " ".repeat(130);
+    const all = [header, ...body, trailer];
+    const bad = all.filter((l) => l.length !== 180);
+    if (bad.length) {
+      toast(`Erro interno: ${bad.length} linhas ≠ 180 caracteres`);
+      return;
+    }
+    const blob = new Blob([all.join("\r\n") + "\r\n"], { type: "text/plain;charset=US-ASCII" });
+    const tipo = "0";
+    const fname = `${String(m.niss_empresa).replace(/^0+/, "")}${yyyy}${mm}${tipo}.TXT`;
+    const link = document.createElement("a");
+    link.href = URL.createObjectURL(blob);
+    link.download = fname;
+    link.click();
+    URL.revokeObjectURL(link.href);
+    const extra = skipped.length ? ` · ${skipped.length} sem NISS omitidos` : "";
+    toast(`Gerado ${fname} · ${rows.length} trabalhadores${extra}`);
+  };
+
   const bindView = () => {
     const map = [
       ["v-zoom", (v) => (state.view.zoom = Number(v) / 100)],
@@ -684,6 +793,7 @@
     $("btn-ins-below").addEventListener("click", () => insertAt(1));
     $("btn-del").addEventListener("click", () => deleteRow());
     $("btn-xlsx").addEventListener("click", generateXlsx);
+    $("btn-txt").addEventListener("click", generateTxt);
     $("btn-discard").addEventListener("click", () => {
       localStorage.removeItem(storageKey());
       state.draft = false;
