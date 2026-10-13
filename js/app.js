@@ -355,14 +355,21 @@
     const page = state.month.pages[row.page] || state.month.pages[0];
     const img = $("scan");
     const want = page || "";
-    const loaded = decodeURI(img.src || "");
-    if (want && !loaded.endsWith(want) && !loaded.includes(encodeURI(want))) {
-      img.onload = () => {
+    if (want) {
+      const loaded = decodeURI(img.src || "");
+      if (!loaded.endsWith(want) && !loaded.includes(encodeURI(want))) {
+        img.onload = () => {
+          layoutTunnel();
+          if (!opts.keepFocus) focusField();
+        };
+        img.src = want;
+      } else {
         layoutTunnel();
-        if (!opts.keepFocus) focusField();
-      };
-      img.src = want;
+      }
     } else {
+      // Clear image when no pages available (e.g., 2018)
+      img.src = "";
+      img.removeAttribute("src");
       layoutTunnel();
     }
     stats();
@@ -456,6 +463,10 @@
     if (location.hash !== `#${month.id}`) location.hash = month.id;
     $("empresa").textContent = `NISS ${month.niss_empresa}`;
     $("filehint").textContent = `Ficheiro final: ${month.filename} (alfabético)`;
+    const hasImages = state.month.pages && state.month.pages.length > 0;
+    if (!hasImages) {
+      $("filehint").textContent = "Mapa original não disponível para este mês. Use apenas os dados extraídos.";
+    }
     document.querySelectorAll(".months button").forEach((b) => {
       b.setAttribute("aria-current", b.dataset.id === month.id ? "true" : "false");
     });
