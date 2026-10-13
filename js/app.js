@@ -539,6 +539,18 @@
       return;
     }
     const m = state.month;
+    // Gate: validate NISS before export
+    const rowsWithMiss = state.rows.filter((r) => String(r.nome || "").trim() && !String(r.niss || "").replace(/\D/g, ""));
+    if (rowsWithMiss.length > 0) {
+      const list = rowsWithMiss.map(r => r.nome).join("\n");
+      toast(`⚠️ ${rowsWithMiss.length} trabalhador(es) sem NISS. Exportação bloqueada.`);
+      const blob = new Blob([list], { type: 'text/plain' });
+      const link = document.createElement('a');
+      link.href = URL.createObjectURL(blob);
+      link.download = 'lista_sem_niss.txt';
+      link.click();
+      return;
+    }
     const rows = state.rows
       .filter((r) => (r.nome || "").trim() && !isTotalRow(r))
       .sort((a, b) => fold(a.nome).localeCompare(fold(b.nome), "pt"));
@@ -609,6 +621,18 @@
 
   const generateTxt = () => {
     const m = state.month;
+    // Gate: validate NISS before export
+    const rowsWithMiss = state.rows.filter((r) => String(r.nome || "").trim() && !String(r.niss || "").replace(/\D/g, ""));
+    if (rowsWithMiss.length > 0) {
+      const list = rowsWithMiss.map(r => r.nome).join("\n");
+      toast(`⚠️ ${rowsWithMiss.length} trabalhador(es) sem NISS. Exportação bloqueada.`);
+      const blob = new Blob([list], { type: 'text/plain' });
+      const link = document.createElement('a');
+      link.href = URL.createObjectURL(blob);
+      link.download = 'lista_sem_niss.txt';
+      link.click();
+      return;
+    }
     const skipped = [];
     const rows = state.rows.filter((r) => {
       if (isTotalRow(r) || !(r.nome || "").trim()) return false;
