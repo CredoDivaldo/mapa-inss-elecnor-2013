@@ -519,7 +519,7 @@
 
   const buildMonths = (ano) => {
     const cfg = window.INSS_CONFIG || { anos: {} };
-    state.months = (cfg.anos[ano] || []);
+    state.months = (cfg.anos[String(ano)] || []);
     const nav = $("months");
     nav.innerHTML = "";
     state.months.forEach((m) => {
