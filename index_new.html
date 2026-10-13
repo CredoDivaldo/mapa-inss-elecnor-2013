@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html lang="pt">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Mapa INSS — Elecnor</title>
+  <style>
+    :root {
+      --chassis: #14110e;
+      --platen: #221d18;
+      --brass: #d56a1f;
+      --stamp: #1f8c86;
+      --paper: #efe6d4;
+      --ink: #1c140e;
+      --mute: #8a7d6c;
+      --miss: #c44732;
+      --ok: #2f7a4a;
+    }
+    * { box-sizing: border-box; }
+    html, body { margin: 0; height: 100%; background: var(--chassis); color: var(--paper); font-family: system-ui, sans-serif; }
+    header {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      padding: 0 16px;
+      border-bottom: 1px solid #3a3229;
+      background: #181410;
+      height: 48px;
+    }
+    .brand { font-size: 15px; font-weight: 700; color: var(--brass); }
+    .sub { color: var(--mute); font-size: 12px; }
+    .stats { margin-left: auto; display: flex; gap: 18px; font-size: 13px; }
+    .stats b { color: var(--paper); }
+    .ok b { color: #7dcca0; }
+    .year-selector {
+      display: flex;
+      gap: 8px;
+      margin-left: 16px;
+    }
+    .year-selector button {
+      padding: 4px 12px;
+      background: #2a241c;
+      border: 1px solid #3a3229;
+      color: var(--mute);
+      cursor: pointer;
+    }
+    .year-selector button.active {
+      background: var(--brass);
+      color: var(--chassis);
+      border-color: var(--brass);
+    }
+    .months {
+      display: flex;
+      gap: 2px;
+      overflow-x: auto;
+      flex: 1;
+    }
+    .months button {
+      background: transparent;
+      border: 0;
+      color: var(--mute);
+      padding: 8px 12px;
+      cursor: pointer;
+    }
+    .months button:hover { color: var(--paper); }
+    .months button[aria-current="true"] {
+      color: var(--brass);
+      border-bottom: 2px solid var(--brass);
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <div>
+      <div class="stamp brand">Mapa INSS · Elecnor</div>
+      <div class="sub" id="empresa">NISS 13067</div>
+    </div>
+    <div class="year-selector" id="yearSelector"></div>
+    <nav class="months" id="months"></nav>
+    <div class="stats">
+      <span>NISS <b id="nissOk">0</b></span>
+    </div>
+  </header>
+
+  <script src="data/relacao.js"></script>
+  <script src="data/config.js"></script>
+  <script>
+    // Selector de ano
+    const yearSelector = document.getElementById('yearSelector');
+    const months = document.getElementById('months');
+    
+    Object.keys(window.INSS_CONFIG.anos).forEach(ano => {
+      const btn = document.createElement('button');
+      btn.textContent = ano;
+      btn.onclick = () => {
+        document.querySelectorAll('.year-selector button').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        loadAno(ano);
+      };
+      yearSelector.appendChild(btn);
+    });
+    
+    function loadAno(ano) {
+      months.innerHTML = '';
+      window.INSS_CONFIG.anos[ano].forEach(m => {
+        const btn = document.createElement('button');
+        btn.textContent = m.label;
+        btn.onclick = () => loadMonth(m.id);
+        months.appendChild(btn);
+      });
+    }
+    
+    function loadMonth(id) {
+      const m = window.INSS_CONFIG.anos['2013'].find(x => x.id === id) || 
+                window.INSS_CONFIG.anos['2018'].find(x => x.id === id);
+      if (!m) return;
+      // Carregar dados aqui
+      document.getElementById('empresa').textContent = `NISS ${m.niss_empresa || window.INSS_CONFIG.niss_empresa}`;
+    }
+    
+    // Inicializar com 2013
+    loadAno('2013');
+  </script>
+</body>
+</html>
