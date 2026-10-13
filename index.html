@@ -49,6 +49,23 @@
     header .stats b { color: var(--paper); }
     header .miss b { color: var(--miss); }
     header .ok b { color: #7dcca0; }
+    .year-selector {
+      display: flex;
+      gap: 8px;
+      margin-left: 16px;
+    }
+    .year-selector button {
+      padding: 4px 12px;
+      background: #2a241c;
+      border: 1px solid #3a3229;
+      color: var(--mute);
+      cursor: pointer;
+    }
+    .year-selector button.active {
+      background: var(--brass);
+      color: var(--chassis);
+      border-color: var(--brass);
+    }
     .months {
       display: flex;
       gap: 2px;
@@ -298,7 +315,8 @@
       <div class="stamp brand">Mapa INSS · Elecnor</div>
       <div class="sub" id="empresa">NISS 13067</div>
     </div>
-    <nav class="months" id="months" aria-label="Meses de 2013"></nav>
+    <div class="year-selector" id="yearSelector"></div>
+    <nav class="months" id="months"></nav>
     <div class="stats">
       <span>Linha <b id="pos">0/0</b></span>
       <span>Pág. <b id="pag">0/0</b></span>
