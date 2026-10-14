@@ -121,7 +121,14 @@ def extrair_pagina(page, cols_hint=None):
         name_words = [w["text"] for w in ln if w["x1"] < (cols[0] - 40 if cols else 250) and not NUM_ORDER.match(w["text"])]
         nome = " ".join(name_words).strip()
         toks = nome.split()
-        cut = next((i for i, t in enumerate(toks) if t.upper().strip(".,") in CATEGORIAS or re.search(r"\d", t)), len(toks))
+        def _corta(i, t):
+            u = t.upper().strip(".,")
+            if u in CATEGORIAS or re.search(r"\d", t):
+                return True
+            if re.search(r"JUDANTE|MAQUINISTA|COZINH|MONTADOR|ELECTRIC|SERRALH|PINTOR|MOTORISTA|OTORISTA|CHEFE|ENCARREG|TECNIC|TÉCNIC|SERVENTE|CANALIZ|CIVIL|EMPREG|OPERADOR", u):
+                return True
+            return i >= 2 and len(u) <= 2
+        cut = next((i for i, t in enumerate(toks) if _corta(i, t)), len(toks))
         if cut > 0:
             nome = " ".join(toks[:cut])
         top = min(w["top"] for w in ln)

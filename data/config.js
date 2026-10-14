@@ -585,7 +585,7 @@ window.INSS_CONFIG = {
         "label": "DEZEMBRO 2018",
         "ano": 2018,
         "mes": 12,
-        "csv": "data/2018/12_web.csv",
+        "csv": "data/2018/12_pendente.csv",
         "pages": [
           "data/2018/12/p-1.png",
           "data/2018/12/p-2.png",
