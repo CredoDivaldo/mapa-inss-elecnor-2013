@@ -26,7 +26,7 @@
     body {
       font-family: "Atkinson Hyperlegible", sans-serif;
       display: grid;
-      grid-template-rows: 48px 42px 1fr 188px 28px;
+      grid-template-rows: 48px auto 1fr 188px 28px;
       min-height: 100dvh;
     }
     .stamp {
@@ -219,6 +219,15 @@
       border: 1px solid #5a4c3c;
     }
     .suggest[hidden] { display: none; }
+    .tools { display: flex; flex-direction: column; min-width: 0; }
+    .relacao-bar { flex-wrap: wrap; overflow: visible; height: auto; gap: 8px 14px; padding: 6px 12px; align-items: center; }
+    .relacao-bar .rel-titulo { font-weight: 700; }
+    .relacao-bar .rel-info { font-size: 12px; opacity: .8; }
+    .relacao-bar .rel-upload { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; }
+    .elig { position: absolute; top: 10px; left: 50%; transform: translateX(-50%); z-index: 6; max-width: min(92%, 760px); padding: 8px 14px; border-radius: 8px; font: 600 13px/1.3 "Atkinson Hyperlegible", sans-serif; border: 1px solid transparent; box-shadow: 0 6px 18px rgba(0,0,0,.35); pointer-events: none; }
+    .elig.ok { background: #e7f3e4; border-color: #9cc795; color: #245c1d; }
+    .elig.warn { background: #fdf1d6; border-color: #e0b75c; color: #6a4a00; }
+    .elig.err { background: #f8dede; border-color: #d98b8b; color: #7a1d1d; }
     .suggest button {
       display: block;
       width: 100%;
@@ -325,6 +334,7 @@
     </div>
   </header>
 
+  <div class="tools">
   <div class="toolbar" id="toolbar">
     <label>Zoom <input id="v-zoom" type="range" min="90" max="320" value="155" /><span class="val" id="v-zoom-v">155%</span></label>
     <label>Corte E <input id="v-cropL" type="range" min="0" max="40" value="6" /><span class="val" id="v-cropL-v">6%</span></label>
@@ -335,8 +345,21 @@
     <label>Máscara <input id="v-veil" type="range" min="30" max="95" value="82" /><span class="val" id="v-veil-v">82%</span></label>
     <button type="button" id="btn-reset-view">Reset vista</button>
   </div>
+  <div class="toolbar relacao-bar" id="relacao-bar">
+    <span class="rel-titulo">Relação e inscrições</span>
+    <span class="rel-info" id="rel-info">Relação: a carregar…</span>
+    <label class="rel-upload">Carregar nova relação <input type="file" id="rel-file" accept=".xlsx" /></label>
+    <button type="button" id="btn-rel-repor">Repor relação do repositório</button>
+    <button type="button" id="btn-ja">Marcar como já inscrito</button>
+    <button type="button" id="btn-ja-export">Exportar já inscritos</button>
+    <label class="rel-upload">Importar já inscritos <input type="file" id="ja-file" accept=".json" /></label>
+    <button type="button" class="primary" id="btn-excl">Lista de excluídos (mês)</button>
+  </div>
+
+  </div>
 
   <div class="well-wrap">
+    <div class="elig" id="elig" hidden></div>
     <div class="well" id="well">
       <img class="scan" id="scan" alt="Página do mapa original" />
       <div class="veil top" id="veilTop"></div>
@@ -391,6 +414,7 @@
 
   <script src="data/config.js"></script>
   <script src="data/relacao.js"></script>
+  <script src="js/elegibilidade.js"></script>
   <script src="js/xlsx.full.min.js"></script>
   <script src="js/app.js?v=6"></script>
 </body>

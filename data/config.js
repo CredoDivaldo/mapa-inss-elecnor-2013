@@ -313,7 +313,7 @@ window.INSS_CONFIG = {
         "label": "JANEIRO 2018",
         "ano": 2018,
         "mes": 1,
-        "csv": "data/2018/01_semifinal.csv",
+        "csv": "data/2018/01_web.csv",
         "pages": [
           "data/2018/01/p01.png",
           "data/2018/01/p02.png",
@@ -405,7 +405,7 @@ window.INSS_CONFIG = {
         "label": "MAIO 2018",
         "ano": 2018,
         "mes": 5,
-        "csv": "data/2018/05_semifinal.csv",
+        "csv": "data/2018/05_web.csv",
         "pages": [
           "data/2018/05/p-01.png",
           "data/2018/05/p-02.png",
@@ -435,7 +435,7 @@ window.INSS_CONFIG = {
         "label": "JUNHO 2018",
         "ano": 2018,
         "mes": 6,
-        "csv": "data/2018/06_semifinal.csv",
+        "csv": "data/2018/06_v2.csv",
         "pages": [
           "data/2018/06/p-01.png",
           "data/2018/06/p-02.png",
@@ -464,7 +464,7 @@ window.INSS_CONFIG = {
         "label": "JULHO 2018",
         "ano": 2018,
         "mes": 7,
-        "csv": "data/2018/07_semifinal.csv",
+        "csv": "data/2018/07_web.csv",
         "pages": [
           "data/2018/07/p-01.png",
           "data/2018/07/p-02.png",
@@ -493,7 +493,7 @@ window.INSS_CONFIG = {
         "label": "AGOSTO 2018",
         "ano": 2018,
         "mes": 8,
-        "csv": "data/2018/08_semifinal.csv",
+        "csv": "data/2018/08_web.csv",
         "pages": [
           "data/2018/08/p-01.png",
           "data/2018/08/p-02.png",
@@ -520,7 +520,7 @@ window.INSS_CONFIG = {
         "label": "SETEMBRO 2018",
         "ano": 2018,
         "mes": 9,
-        "csv": "data/2018/09_semifinal.csv",
+        "csv": "data/2018/09_web.csv",
         "pages": [
           "data/2018/09/p-01.png",
           "data/2018/09/p-02.png",
@@ -543,7 +543,7 @@ window.INSS_CONFIG = {
         "label": "OUTUBRO 2018",
         "ano": 2018,
         "mes": 10,
-        "csv": "data/2018/10_semifinal.csv",
+        "csv": "data/2018/10_web.csv",
         "pages": [
           "data/2018/10/p-1.png",
           "data/2018/10/p-2.png",
@@ -564,7 +564,7 @@ window.INSS_CONFIG = {
         "label": "NOVEMBRO 2018",
         "ano": 2018,
         "mes": 11,
-        "csv": "data/2018/11_semifinal.csv",
+        "csv": "data/2018/11_web.csv",
         "pages": [
           "data/2018/11/p-1.png",
           "data/2018/11/p-2.png",
@@ -585,7 +585,7 @@ window.INSS_CONFIG = {
         "label": "DEZEMBRO 2018",
         "ano": 2018,
         "mes": 12,
-        "csv": "data/2018/12_semifinal.csv",
+        "csv": "data/2018/12_web.csv",
         "pages": [
           "data/2018/12/p-1.png",
           "data/2018/12/p-2.png",
