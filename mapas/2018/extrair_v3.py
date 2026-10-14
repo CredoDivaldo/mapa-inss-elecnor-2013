@@ -93,6 +93,10 @@ def descobrir_colunas(pag_lines):
     return [round(sum(g) / len(g)) for g in grupos]
 
 
+CATEGORIAS = {"EMPREGADA", "EMPREGADO", "PINTOR", "MONTADOR", "ELECTRICISTA", "ELECTRICISTA", "AJUDANTE",
+    "OTORISTA", "MOTORISTA", "CHEFE", "ENCARREGADO", "TECNICO", "TÉCNICO", "TÉCNICO", "SERRALHEIRO", "CANALIZADOR",
+    "SERVENTE", "CIVIL", "PEDREIRO", "SOLDADOR", "TORNEIRO", "OPERADOR", "GRUA", "CARPINTEIRO", "AUTO", "ESTRUTURAS",
+    "ANDAIME", "COZINHA", "LIMPEZA", "DOMESTICA", "DOMÉSTICA", "FRIO", "EQUIPA", "ISOLADOR", "ARMADOR", "MECANICO", "MECÂNICO"}
 TOTAIS = []   # linhas sem nome = linhas de total do mapa (referência oficial do PDF)
 
 def extrair_pagina(page, cols_hint=None):
@@ -116,6 +120,10 @@ def extrair_pagina(page, cols_hint=None):
             slots.setdefault(COLS[j] if j < len(COLS) else "x", []).append(w["text"])
         name_words = [w["text"] for w in ln if w["x1"] < (cols[0] - 40 if cols else 250) and not NUM_ORDER.match(w["text"])]
         nome = " ".join(name_words).strip()
+        toks = nome.split()
+        cut = next((i for i, t in enumerate(toks) if t.upper().strip(".,") in CATEGORIAS or re.search(r"\d", t)), len(toks))
+        if cut > 0:
+            nome = " ".join(toks[:cut])
         top = min(w["top"] for w in ln)
         bottom = max(w["bottom"] for w in ln)
         H = page.height
