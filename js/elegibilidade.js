@@ -170,9 +170,10 @@
   const excluidosCsv = (excluidos) => {
     const ordenados = [...excluidos].sort((a, b) => fold(a.pessoa.nome).localeCompare(fold(b.pessoa.nome), "pt"));
     const esc = (v) => `"${String(v == null ? "" : v).replace(/"/g, '""')}"`;
-    const cab = ["Nome (relação)", "NISS", "Vínculos", "Motivo", "Página", "Nome no mapa", "Salário", "Remuneração adicional"];
+    const cab = ["Nome (relação)", "NISS", "Vínculos", "Motivo", "Página", "Nome no mapa", "Salário", "Remuneração adicional", "Ação"];
     const linhas = ordenados.map((r) => [
       r.pessoa.nome, r.niss, descreverVinculos(r.pessoa), r.motivo, r.pagina, r.nome_mapa, r.sal, r.rem,
+      "atualizar período de vínculo (confirmar datas acima)",
     ].map(esc).join(","));
     return "\uFEFF" + [cab.map(esc).join(","), ...linhas].join("\r\n") + "\r\n";
   };

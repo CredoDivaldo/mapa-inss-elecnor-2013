@@ -529,8 +529,16 @@
     const pend = prep.bloqueados;
     if (!pend.length) { toast("Não há trabalhadores por resolver. Pode exportar o TXT."); return; }
     const esc = (v) => `"${String(v ?? "").replace(/"/g, '""')}"`;
-    const cab = ["pagina", "nome_mapa", "sal", "motivo", "niss"].join(",");
-    const linhas = pend.map((b) => [b.pagina, b.nome_mapa, b.sal, b.motivo, b.niss || ""].map(esc).join(","));
+    const acaoDe = (motivo) => {
+      const m = String(motivo || "");
+      if (/sem NISS/i.test(m)) return "obter NISS (a pessoa não tem NISS no mapa)";
+      if (/não existe na relação/i.test(m)) return "verificar NISS (não existe na relação)";
+      if (/duas palavras/i.test(m)) return "completar nome na relação";
+      if (/8 dígitos/i.test(m)) return "corrigir NISS";
+      return "resolver";
+    };
+    const cab = ["pagina", "nome_mapa", "sal", "motivo", "niss", "acao"].join(",");
+    const linhas = pend.map((b) => [b.pagina, b.nome_mapa, b.sal, b.motivo, b.niss || "", acaoDe(b.motivo)].map(esc).join(","));
     download([cab, ...linhas].join("\r\n"), `pendentes_${state.month.id}.csv`, "text/csv;charset=utf-8");
     toast(`${pend.length} por resolver exportados. Preencha a coluna niss e importe.`);
   };
