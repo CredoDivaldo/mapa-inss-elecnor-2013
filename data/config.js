@@ -344,7 +344,7 @@ window.INSS_CONFIG = {
         "label": "FEVEREIRO 2018",
         "ano": 2018,
         "mes": 2,
-        "csv": "data/2018/02_semifinal.csv",
+        "csv": "data/2018/02_pendente.csv",
         "pages": [
           "data/2018/02/p-01.png",
           "data/2018/02/p-02.png",
@@ -379,7 +379,7 @@ window.INSS_CONFIG = {
         "label": "MARÇO 2018",
         "ano": 2018,
         "mes": 3,
-        "csv": "data/2018/03_semifinal.csv",
+        "csv": "data/2018/03_pendente.csv",
         "pages": [
           "data/2018/03/p-01.png",
           "data/2018/03/p-02.png",
