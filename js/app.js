@@ -477,7 +477,9 @@
 
   const saveDraft = () => {
     if (!state.month) return;
-    localStorage.setItem(storageKey(), JSON.stringify({ mes: state.month.id, i: state.i, rows: state.rows, guardado_em: new Date().toISOString() }));
+    const obj = { mes: state.month.id, i: state.i, rows: state.rows, guardado_em: new Date().toISOString() };
+    localStorage.setItem(storageKey(), JSON.stringify(obj));
+    if (window.NUVEM) NUVEM.gravar(state.month.id, obj, { pendentes: state.rows.filter((r) => !r.niss).length, alteracoes: calcularAlteracoes() });
     localStorage.setItem(viewKey(), JSON.stringify(state.view));
     state.draft = true;
     state.alteracoes = calcularAlteracoes();
@@ -850,7 +852,16 @@
     }
     const text = await res.text();
     let rows = parseCsv(text);
-    const saved = localStorage.getItem(storageKey());
+    let saved = localStorage.getItem(storageKey());
+    if (window.NUVEM && NUVEM.utilizador()) {
+      const remoto = await NUVEM.carregarRascunho(month.id).catch((e) => { toast("Nuvem: " + e.message); return null; });
+      let dataLocal = new Date(0);
+      try { if (saved) dataLocal = new Date(JSON.parse(saved).guardado_em || 0); } catch { dataLocal = new Date(0); }
+      if (remoto && Array.isArray(remoto.rows) && new Date(remoto.atualizado_em) > dataLocal) {
+        saved = JSON.stringify({ mes: remoto.mes, i: remoto.i, rows: remoto.rows, guardado_em: remoto.atualizado_em });
+        toast(`Rascunho da nuvem (por ${remoto.atualizado_por}) carregado.`);
+      }
+    }
     if (saved) {
       try {
         const draft = JSON.parse(saved);
@@ -875,6 +886,32 @@
     atualizarIndicador();
     state.col = 0;
     showRow();
+  };
+
+  const renderConta = () => {
+    const u = window.NUVEM && NUVEM.utilizador();
+    $("conta-info").textContent = u ? `Sessão: ${u.email}` : "Sem sessão · rascunho só neste navegador";
+    $("btn-entrar").hidden = !!u;
+    $("btn-sair").hidden = !u;
+    $("conta-email").hidden = !!u;
+    $("conta-pass").hidden = !!u;
+  };
+
+  const renderEquipa = async () => {
+    const box = $("equipa-lista");
+    if (!window.NUVEM || !NUVEM.utilizador()) { box.textContent = "Entre na sua conta para ver o estado da equipa."; return; }
+    try {
+      const meses = await NUVEM.listarMeses();
+      box.innerHTML = "";
+      if (!meses.length) { box.textContent = "Ainda não há meses registados."; return; }
+      meses.forEach((m) => {
+        const linha = document.createElement("div");
+        const quando = m.atualizado_em ? new Date(m.atualizado_em).toLocaleString("pt-PT", { dateStyle: "short", timeStyle: "short" }) : "";
+        const estado = m.estado === "em_edicao" ? `em edição por ${m.em_edicao_por || "?"}` : m.estado.replace("_", " ");
+        linha.textContent = `${m.id} · ${estado} · ${m.pendentes} por resolver · ${m.alteracoes} alterações · última gravação: ${m.atualizado_por || "?"} ${quando}`;
+        box.appendChild(linha);
+      });
+    } catch (e) { box.textContent = "Erro ao ler a equipa: " + e.message; }
   };
 
   const buildYears = () => {
@@ -1137,6 +1174,23 @@
       e.target.value = "";
     });
     $("btn-rel-repor").addEventListener("click", reporRelacao);
+    $("btn-entrar").addEventListener("click", async () => {
+      try {
+        await NUVEM.entrar($("conta-email").value.trim(), $("conta-pass").value);
+        $("conta-pass").value = "";
+        renderConta(); renderEquipa();
+        toast("Sessão iniciada");
+        if (state.month) loadMonth(state.month);
+      } catch (e) { toast(e.message); }
+    });
+    $("btn-sair").addEventListener("click", async () => {
+      await NUVEM.sair(); renderConta(); renderEquipa(); toast("Sessão terminada");
+    });
+    $("btn-equipa-atualizar").addEventListener("click", renderEquipa);
+    if (window.NUVEM) {
+      NUVEM.init().then(() => { renderConta(); renderEquipa(); }).catch(() => renderConta());
+      setInterval(renderEquipa, 60000);
+    }
     $("btn-draft-save").addEventListener("click", guardarRascunhoFicheiro);
     $("draft-file").addEventListener("change", (e) => { const f = e.target.files[0]; if (f) carregarRascunhoFicheiro(f); e.target.value = ""; });
     $("btn-pend").addEventListener("click", exportarPendentes);

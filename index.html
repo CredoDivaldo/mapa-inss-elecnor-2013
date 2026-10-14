@@ -314,6 +314,9 @@
     .relacao-bar .btn-file { display:inline-flex; align-items:center; gap:4px; border:1px solid #bbb; border-radius:6px; padding:3px 8px; cursor:pointer; font-size:12px; background:#fff; }
     .relacao-bar .btn-file input { display:none; }
     .draft.alerta { color:#b45309; font-weight:700; }
+    #conta-email, #conta-pass { font: inherit; font-size:12px; padding:3px 6px; width:150px; }
+    #equipa summary { cursor:pointer; font-size:12px; }
+    #equipa-lista { font-size:12px; line-height:1.6; max-height:200px; overflow:auto; padding:4px 0; }
   </style>
 </head>
 <body>
@@ -351,6 +354,18 @@
     <button type="button" id="btn-reset-view">Reset vista</button>
   </div>
   <div class="toolbar relacao-bar" id="relacao-bar">
+    <div class="grupo" id="grupo-conta">
+      <span class="grupo-titulo">0 · Conta e equipa</span>
+      <span id="conta-info">Sem sessão</span>
+      <input type="email" id="conta-email" placeholder="email" />
+      <input type="password" id="conta-pass" placeholder="palavra-passe" />
+      <button type="button" id="btn-entrar" class="primary">Entrar</button>
+      <button type="button" id="btn-sair" hidden>Sair</button>
+      <details id="equipa"><summary>Estado da equipa (por mês)</summary>
+        <div id="equipa-lista">—</div>
+        <button type="button" id="btn-equipa-atualizar">Atualizar</button>
+      </details>
+    </div>
     <div class="grupo">
       <span class="grupo-titulo">1 · Base de NISS</span>
       <span class="rel-info" id="rel-info">Relação: a carregar…</span>
@@ -436,6 +451,8 @@
   <script src="data/relacao.js"></script>
   <script src="js/elegibilidade.js"></script>
   <script src="js/xlsx.full.min.js"></script>
-  <script src="js/app.js?v=6"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="js/nuvem.js"></script>
+  <script src="js/app.js?v=7"></script>
 </body>
 </html>
