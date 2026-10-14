@@ -456,24 +456,132 @@
     h: from && from.h ? from.h : 0.014,
   });
 
+  const calcularAlteracoes = () => {
+    const snap = state.snapshot || [];
+    let n = Math.abs(state.rows.length - snap.length);
+    const m = Math.min(state.rows.length, snap.length);
+    for (let k = 0; k < m; k++) if (JSON.stringify(state.rows[k]) !== snap[k]) n++;
+    return n;
+  };
+
+  const atualizarIndicador = () => {
+    const el = $("draft");
+    if (!el) return;
+    if (!state.draft && !state.naoExportado) { el.hidden = true; return; }
+    el.hidden = false;
+    el.classList.toggle("alerta", !!state.naoExportado);
+    el.textContent = state.naoExportado
+      ? `⚠ ${state.alteracoes} alteração(ões) só neste navegador — guarde o rascunho em ficheiro`
+      : "✓ Rascunho guardado em ficheiro";
+  };
+
   const saveDraft = () => {
     if (!state.month) return;
-    localStorage.setItem(
-      storageKey(),
-      JSON.stringify({
-        i: state.i,
-        rows: state.rows,
-      })
-    );
+    localStorage.setItem(storageKey(), JSON.stringify({ mes: state.month.id, i: state.i, rows: state.rows, guardado_em: new Date().toISOString() }));
     localStorage.setItem(viewKey(), JSON.stringify(state.view));
     state.draft = true;
-    $("draft").hidden = false;
+    state.alteracoes = calcularAlteracoes();
+    state.naoExportado = state.alteracoes > 0;
+    atualizarIndicador();
   };
 
   let saveTimer = 0;
   const scheduleSave = () => {
     clearTimeout(saveTimer);
     saveTimer = setTimeout(saveDraft, 350);
+  };
+
+  const guardarRascunhoFicheiro = () => {
+    if (!state.month) return;
+    const dados = { versao: 1, mes: state.month.id, i: state.i, rows: state.rows, guardado_em: new Date().toISOString() };
+    const hora = new Date().toTimeString().slice(0, 5).replace(":", "h");
+    download(JSON.stringify(dados), `rascunho_${state.month.id}_${hora}.json`, "application/json");
+    state.snapshot = state.rows.map((r) => JSON.stringify(r));
+    state.alteracoes = 0;
+    state.naoExportado = false;
+    atualizarIndicador();
+    toast("Rascunho guardado em ficheiro. Guarde este ficheiro em lugar seguro.");
+  };
+
+  const carregarRascunhoFicheiro = async (file) => {
+    try {
+      const d = JSON.parse(await file.text());
+      if (!Array.isArray(d.rows)) throw new Error("o ficheiro não tem linhas");
+      if (state.month && d.mes && d.mes !== state.month.id) {
+        if (!window.confirm(`Este rascunho é de ${d.mes}, e o mês aberto é ${state.month.id}. Carregar mesmo assim?`)) return;
+      }
+      state.rows = d.rows.map((r) => ({ ...r, nome: toPortalName(r.nome) }));
+      state.i = Math.min(d.i || 0, Math.max(0, state.rows.length - 1));
+      state.snapshot = state.rows.map((r) => JSON.stringify(r));
+      state.alteracoes = 0;
+      state.naoExportado = false;
+      saveDraft();
+      showRow();
+      toast(`Rascunho carregado: ${state.rows.length} linhas`);
+    } catch (e) {
+      toast("Ficheiro de rascunho inválido: " + e.message);
+    }
+  };
+
+  const exportarPendentes = () => {
+    if (!state.month) return;
+    const prep = elig().prepararLinhas(state.rows, state.month, ctxElig());
+    const pend = prep.bloqueados;
+    if (!pend.length) { toast("Não há trabalhadores por resolver. Pode exportar o TXT."); return; }
+    const esc = (v) => `"${String(v ?? "").replace(/"/g, '""')}"`;
+    const cab = ["pagina", "nome_mapa", "sal", "motivo", "niss"].join(",");
+    const linhas = pend.map((b) => [b.pagina, b.nome_mapa, b.sal, b.motivo, b.niss || ""].map(esc).join(","));
+    download([cab, ...linhas].join("\r\n"), `pendentes_${state.month.id}.csv`, "text/csv;charset=utf-8");
+    toast(`${pend.length} por resolver exportados. Preencha a coluna niss e importe.`);
+  };
+
+  const parseCsvLinhas = (texto) => {
+    const linhas = [];
+    texto.replace(/^\uFEFF/, "").split(/\r?\n/).forEach((ln) => {
+      if (!ln.trim()) return;
+      const campos = []; let cur = ""; let q = false;
+      for (let k = 0; k < ln.length; k++) {
+        const ch = ln[k];
+        if (q) {
+          if (ch === '"' && ln[k + 1] === '"') { cur += '"'; k++; }
+          else if (ch === '"') q = false;
+          else cur += ch;
+        } else if (ch === '"') q = true;
+        else if (ch === ",") { campos.push(cur); cur = ""; }
+        else cur += ch;
+      }
+      campos.push(cur);
+      linhas.push(campos);
+    });
+    return linhas;
+  };
+
+  const importarNissResolvidos = async (file) => {
+    if (!state.month) return;
+    const linhas = parseCsvLinhas(await file.text());
+    if (!linhas.length) { toast("Ficheiro vazio"); return; }
+    const cab = linhas.shift().map((c) => c.trim().toLowerCase());
+    const iP = cab.indexOf("pagina"), iN = cab.indexOf("nome_mapa"), iS = cab.indexOf("niss");
+    if (iN < 0 || iS < 0) { toast("Ficheiro sem as colunas nome_mapa e niss"); return; }
+    let aplicados = 0; const naoEnc = []; const invalidos = [];
+    for (const c of linhas) {
+      const niss = String(c[iS] || "").replace(/\D/g, "");
+      if (!niss) continue;
+      if (niss.length > 8 || /^0+$/.test(niss)) { invalidos.push(c[iN]); continue; }
+      const nome = toPortalName(c[iN]);
+      const pag = iP >= 0 ? Number(c[iP]) : null;
+      const idx = state.rows.findIndex((r) => r.nome === nome && (pag == null || Number(r.page) + 1 === pag));
+      if (idx < 0) { naoEnc.push(c); continue; }
+      state.rows[idx].niss = niss.padStart(8, "0");
+      aplicados++;
+    }
+    saveDraft();
+    showRow();
+    if (naoEnc.length) {
+      const esc = (v) => `"${String(v ?? "").replace(/"/g, '""')}"`;
+      download([linhas.length ? cab.join(",") : "", ...naoEnc.map((c) => c.map(esc).join(","))].join("\r\n"), `nao_importados_${state.month.id}.csv`, "text/csv;charset=utf-8");
+    }
+    toast(`NISS aplicados: ${aplicados} · não encontrados: ${naoEnc.length} · inválidos: ${invalidos.length}`);
   };
 
   const parseCsv = (text) => {
@@ -753,6 +861,10 @@
       state.i = 0;
     }
     state.rows = rows.map((r) => ({ ...r, nome: toPortalName(r.nome) }));
+    state.snapshot = parseCsv(text).filter((r) => !isTotalRow(r)).map((r) => JSON.stringify({ ...r, nome: toPortalName(r.nome) }));
+    state.alteracoes = calcularAlteracoes();
+    state.naoExportado = state.alteracoes > 0;
+    atualizarIndicador();
     state.col = 0;
     showRow();
   };
@@ -1017,6 +1129,10 @@
       e.target.value = "";
     });
     $("btn-rel-repor").addEventListener("click", reporRelacao);
+    $("btn-draft-save").addEventListener("click", guardarRascunhoFicheiro);
+    $("draft-file").addEventListener("change", (e) => { const f = e.target.files[0]; if (f) carregarRascunhoFicheiro(f); e.target.value = ""; });
+    $("btn-pend").addEventListener("click", exportarPendentes);
+    $("nissimp-file").addEventListener("change", (e) => { const f = e.target.files[0]; if (f) importarNissResolvidos(f); e.target.value = ""; });
     $("btn-ja").addEventListener("click", marcarJaInscrito);
     $("btn-ja-export").addEventListener("click", exportarJa);
     $("ja-file").addEventListener("change", (e) => {
@@ -1037,7 +1153,10 @@
     });
     bindView();
     window.addEventListener("resize", layoutTunnel);
-    window.addEventListener("beforeunload", saveDraft);
+    window.addEventListener("beforeunload", (e) => {
+      saveDraft();
+      if (state.naoExportado) { e.preventDefault(); e.returnValue = ""; }
+    });
 
     document.addEventListener("keydown", (e) => {
       if (e.target && e.target.type === "range") return;

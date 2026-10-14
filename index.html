@@ -309,6 +309,11 @@
       .editor { grid-template-columns: 1fr 1fr; }
       .field.nome { grid-column: 1 / -1; }
     }
+      .relacao-bar .grupo { display:inline-flex; flex-wrap:wrap; align-items:center; gap:6px; padding:4px 10px; border:1px solid #d9d2c3; border-radius:8px; }
+    .relacao-bar .grupo-titulo { font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:.04em; opacity:.75; margin-right:4px; }
+    .relacao-bar .btn-file { display:inline-flex; align-items:center; gap:4px; border:1px solid #bbb; border-radius:6px; padding:3px 8px; cursor:pointer; font-size:12px; background:#fff; }
+    .relacao-bar .btn-file input { display:none; }
+    .draft.alerta { color:#b45309; font-weight:700; }
   </style>
 </head>
 <body>
@@ -346,14 +351,29 @@
     <button type="button" id="btn-reset-view">Reset vista</button>
   </div>
   <div class="toolbar relacao-bar" id="relacao-bar">
-    <span class="rel-titulo">Relação e inscrições</span>
-    <span class="rel-info" id="rel-info">Relação: a carregar…</span>
-    <label class="rel-upload">Carregar nova relação <input type="file" id="rel-file" accept=".xlsx" /></label>
-    <button type="button" id="btn-rel-repor">Repor relação do repositório</button>
-    <button type="button" id="btn-ja">Marcar como já inscrito</button>
-    <button type="button" id="btn-ja-export">Exportar já inscritos</button>
-    <label class="rel-upload">Importar já inscritos <input type="file" id="ja-file" accept=".json" /></label>
-    <button type="button" class="primary" id="btn-excl">Lista de excluídos (mês)</button>
+    <div class="grupo">
+      <span class="grupo-titulo">1 · Base de NISS</span>
+      <span class="rel-info" id="rel-info">Relação: a carregar…</span>
+      <label class="btn-file" title="Substitui a relação usada para NISS e nomes">Carregar relação nova (.xlsx)<input type="file" id="rel-file" accept=".xlsx" /></label>
+      <button type="button" id="btn-rel-repor" title="Volta à relação incluída no repositório">Repor relação original</button>
+    </div>
+    <div class="grupo">
+      <span class="grupo-titulo">2 · Rascunho deste mês</span>
+      <button type="button" id="btn-draft-save" class="primary" title="Descarrega todo o trabalho deste mês para um ficheiro. Guarde-o: é o backup seguro.">Guardar rascunho (ficheiro)</button>
+      <label class="btn-file" title="Retoma um rascunho guardado em ficheiro">Abrir rascunho (ficheiro)<input type="file" id="draft-file" accept=".json" /></label>
+    </div>
+    <div class="grupo">
+      <span class="grupo-titulo">3 · Por resolver</span>
+      <button type="button" id="btn-pend" title="Trabalhadores sem NISS ou fora do período. Preencha a coluna niss no CSV.">Descarregar pendentes (CSV)</button>
+      <label class="btn-file" title="Importa o CSV de pendentes já preenchido com a coluna niss">Importar NISS preenchidos (CSV)<input type="file" id="nissimp-file" accept=".csv" /></label>
+      <button type="button" id="btn-excl" title="Trabalhadores que não cobrem o mês. Não entram no TXT.">Excluídos do mês (CSV)</button>
+    </div>
+    <div class="grupo">
+      <span class="grupo-titulo">4 · Já inscritos</span>
+      <button type="button" id="btn-ja" title="Marca a pessoa atual como já inscrita (sai da lista de pendentes)">Marcar pessoa atual</button>
+      <button type="button" id="btn-ja-export" title="Descarrega a lista de já inscritos (JSON)">Exportar (JSON)</button>
+      <label class="btn-file" title="Carrega uma lista de já inscritos (JSON)">Importar (JSON)<input type="file" id="ja-file" accept=".json" /></label>
+    </div>
   </div>
 
   </div>
