@@ -395,10 +395,13 @@
   };
 
   const avisarBloqueio = (bloqueados) => {
-    const linhas = bloqueados.map((b) => `${b.nome_mapa || "(sem nome)"} | pág. ${b.pagina} | ${b.motivo}`);
+    const esc = (v) => `"${String(v ?? "").replace(/"/g, '""')}"`;
+    const cab = ["nome_mapa", "pagina", "motivo"].join(",");
+    const linhas = bloqueados.map((b) => [b.nome_mapa || "(sem nome)", b.pagina, b.motivo].map(esc).join(","));
     toast(`⚠️ ${bloqueados.length} trabalhador(es) por resolver. Exportação bloqueada.`);
-    download(linhas.join("\n"), `por_resolver_${state.month.id}.txt`, "text/plain;charset=utf-8");
+    download([cab, ...linhas].join("\r\n"), `por_resolver_${state.month.id}.csv`, "text/csv;charset=utf-8");
   };
+
 
   const initRelacaoStore = async () => {
     try {
@@ -426,8 +429,8 @@
     renderElig();
   };
 
-  const storageKey = () => `inss-${state.year}-${state.month?.id}`;
-  const viewKey = () => `inss-view-${state.year}-${state.month?.id}`;
+  const storageKey = () => `inss-v3-${state.year}-${state.month?.id}`;
+  const viewKey = () => `inss-view-v3-${state.year}-${state.month?.id}`;
 
   const isTotalRow = (row) => {
     const n = fold(row && row.nome);
