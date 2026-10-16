@@ -653,7 +653,15 @@
   };
 
   const stats = () => {
-    const ok = state.rows.filter((r) => r.niss).length;
+    // D5: o cabeçalho usa a mesma contagem do aviso de exportação (bloqueados pela
+    // elegibilidade), para aviso e cabeçalho nunca divergirem.
+    let ok = 0;
+    if (state.month && elig()) {
+      const BLOQ = new Set(["sem_niss", "niss_invalido", "niss_fora_relacao", "nome_incompleto"]);
+      ok = state.rows.filter((r) => !BLOQ.has(elig().classificarLinha(r, ctxElig()).estado)).length;
+    } else {
+      ok = state.rows.filter((r) => r.niss).length;
+    }
     $("nissOk").textContent = String(ok);
     $("nissMiss").textContent = String(state.rows.length - ok);
     $("pos").textContent = state.rows.length ? `${state.i + 1}/${state.rows.length}` : "0/0";
