@@ -1,3 +1,4 @@
+// INCOMPLETO: falta o passo de alteracao (importar NISS) antes de verificar a gravacao. Ver handoff.
 // Teste manual: gravacao na nuvem e recuperacao. ESCREVE em meses/rascunhos/historico do Supabase.
 // Usar com conta de teste e apagar os dados depois. Variaveis: TESTE_EMAIL, TESTE_PASS, SUPABASE_SERVICE_KEY, SUPABASE_REF.
 const { chromium } = require("../node_modules/playwright-core");
