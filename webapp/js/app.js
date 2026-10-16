@@ -89,8 +89,10 @@
       const d = String(q || "").replace(/\D/g, "");
       if (d.length < 2) return [];
       const out = [];
+      // NISS na relação tem 8 dígitos; aceitar também o formato sem zero à frente
+      const alt = d.length >= 5 ? d.padStart(8, "0") : d;
       for (const r of relacao()) {
-        if (String(r.niss).startsWith(d)) {
+        if (String(r.niss).startsWith(d) || String(r.niss).startsWith(alt)) {
           out.push(r);
           if (out.length >= 8) break;
         }
@@ -103,8 +105,9 @@
     const exact = [];
     const rest = [];
     for (const r of relacao()) {
-      if (r.k === query) exact.push(r);
-      else if (toks.every((t) => r.k.includes(t))) rest.push(r);
+      const key = r.k || fold(r.nome);
+      if (key === query) exact.push(r);
+      else if (toks.every((t) => key.includes(t))) rest.push(r);
       if (exact.length + rest.length >= 24) break;
     }
     return exact.concat(rest).slice(0, 8);
@@ -131,6 +134,7 @@
     $("f-nome").value = item.nome;
     $("f-niss").classList.toggle("empty", false);
     hideSuggest();
+    renderElig();
     stats();
     scheduleSave();
     focusField();
@@ -162,7 +166,7 @@
   const autoFillFromNome = (nome) => {
     const q = fold(nome);
     if (q.split(" ").length < 2) return;
-    const hits = relacao().filter((r) => r.k === q);
+    const hits = relacao().filter((r) => (r.k || fold(r.nome)) === q);
     if (hits.length === 1) {
       const row = state.rows[state.i];
       if (row && !row.niss) {
@@ -177,8 +181,256 @@
     }
   };
 
-  const storageKey = () => `inss-${state.year}-${state.month?.id}`;
-  const viewKey = () => `inss-view-${state.year}-${state.month?.id}`;
+  /* ---------- Relação, já inscritos e elegibilidade ---------- */
+  const REL_KEY = "inss-relacao-upload";
+  const JA_KEY = "inss-ja-inscritos";
+  const RELACAO_REPO = window.INSS_RELACAO || [];
+  let relacaoMeta = null;
+  let jaRepo = [];
+  let idxCache = { ref: null, map: null };
+  const elig = () => window.INSS_ELEG;
+
+  const relacaoIndex = () => {
+    const lista = window.INSS_RELACAO || [];
+    if (idxCache.ref !== lista) {
+      const map = new Map();
+      for (const p of lista) map.set(p.niss, p);
+      idxCache = { ref: lista, map };
+    }
+    return idxCache.map;
+  };
+
+  const readJa = () => {
+    try {
+      const v = JSON.parse(localStorage.getItem(JA_KEY) || "[]");
+      return Array.isArray(v) ? v : [];
+    } catch {
+      return [];
+    }
+  };
+
+  const jaSet = () => {
+    const s = new Set();
+    [...jaRepo, ...readJa()].forEach((x) => {
+      if (x && x.niss) s.add(String(x.niss).replace(/\D/g, "").padStart(8, "0"));
+    });
+    return s;
+  };
+
+  const ctxElig = () => ({
+    index: relacaoIndex(),
+    ja: jaSet(),
+    ano: Number(state.month.ano),
+    mes: Number(state.month.mes),
+  });
+
+  const download = (conteudo, nome, tipo) => {
+    const blob = new Blob([conteudo], { type: tipo });
+    const link = document.createElement("a");
+    link.href = URL.createObjectURL(blob);
+    link.download = nome;
+    link.click();
+    setTimeout(() => URL.revokeObjectURL(link.href), 1000);
+  };
+
+  const relacaoInfo = () => {
+    const el = $("rel-info");
+    if (relacaoMeta) {
+      el.textContent = `Relação carregada: ${relacaoMeta.ficheiro} · ${relacaoMeta.pessoas} trabalhadores · ${relacaoMeta.carregado_em}`;
+    } else {
+      el.textContent = `Relação do repositório (data/relacao.js) · ${RELACAO_REPO.length} trabalhadores`;
+    }
+  };
+
+  const ESTADO_AVISO = {
+    ok: ["ok", "✓ Vínculo cobre o mês"],
+    ja_inscrito: ["ok", "✓ Já inscrito (confirmado)"],
+    excluido_periodo: ["warn", "⚠ Fora do período: não entra no TXT"],
+    sem_niss: ["err", "✖ Sem NISS: escolha na relação"],
+    niss_fora_relacao: ["err", "✖ NISS não existe na relação"],
+    nome_incompleto: ["err", "✖ Nome incompleto na relação"],
+    niss_invalido: ["err", "✖ NISS inválido"],
+  };
+
+  const renderElig = () => {
+    const box = $("elig");
+    const row = state.rows[state.i];
+    if (!row || !state.month || !elig()) {
+      box.hidden = true;
+      return;
+    }
+    const c = elig().classificarLinha(row, ctxElig());
+    const [cls, texto] = ESTADO_AVISO[c.estado] || ["err", c.estado];
+    let detalhe = "";
+    if (c.estado === "excluido_periodo" && c.pessoa) {
+      detalhe = ` · vínculo: ${elig().descreverVinculos(c.pessoa)}`;
+    }
+    box.hidden = false;
+    box.className = `elig ${cls}`;
+    box.textContent = texto + detalhe;
+  };
+
+  const marcarJaInscrito = () => {
+    const row = state.rows[state.i];
+    if (!row) return;
+    const niss = String(row.niss || "").replace(/\D/g, "").padStart(8, "0");
+    if (!String(row.niss || "").replace(/\D/g, "")) {
+      toast("Escolha primeiro o NISS deste trabalhador (pela relação).");
+      return;
+    }
+    const pessoa = relacaoIndex().get(niss);
+    if (!pessoa) {
+      toast("Este NISS não está na relação. Não pode ser marcado.");
+      return;
+    }
+    const lista = readJa();
+    if (!lista.some((x) => String(x.niss).padStart(8, "0") === niss)) {
+      lista.push({ niss, nome: pessoa.nome, marcado_em: new Date().toISOString().slice(0, 10), mes: state.month.id });
+      localStorage.setItem(JA_KEY, JSON.stringify(lista));
+    }
+    toast(`${pessoa.nome} marcado como já inscrito.`);
+    renderElig();
+    stats();
+  };
+
+  const exportarJa = () => {
+    const dados = {
+      descricao: "Já inscritos confirmados pelo contabilista. Passam sem filtro de período.",
+      exportado_em: new Date().toISOString().slice(0, 16).replace("T", " "),
+      inscritos: readJa(),
+    };
+    download(JSON.stringify(dados, null, 2), "ja_inscritos.json", "application/json");
+    toast(`Exportados ${dados.inscritos.length} já inscritos.`);
+  };
+
+  const importarJa = async (file) => {
+    let obj;
+    try {
+      obj = JSON.parse(await file.text());
+    } catch {
+      toast("Ficheiro JSON inválido.");
+      return;
+    }
+    const novos = Array.isArray(obj) ? obj : obj.inscritos || [];
+    const lista = readJa();
+    const set = new Set(lista.map((x) => String(x.niss).padStart(8, "0")));
+    let add = 0;
+    for (const x of novos) {
+      const n = String(x && x.niss ? x.niss : "").replace(/\D/g, "").padStart(8, "0");
+      if (n.length === 8 && !set.has(n)) {
+        lista.push({ ...x, niss: n });
+        set.add(n);
+        add++;
+      }
+    }
+    localStorage.setItem(JA_KEY, JSON.stringify(lista));
+    toast(`${add} já inscritos importados (${lista.length} no total).`);
+    renderElig();
+    stats();
+  };
+
+  const carregarRelacao = async (file) => {
+    if (typeof XLSX === "undefined") {
+      toast("Biblioteca Excel em falta.");
+      return;
+    }
+    let linhas;
+    try {
+      const buf = await file.arrayBuffer();
+      const wb = XLSX.read(buf, { type: "array", cellDates: false }); // datas como número de série: sem fuso horário
+      const ws = wb.Sheets[wb.SheetNames[0]];
+      linhas = XLSX.utils.sheet_to_json(ws, { header: 1, raw: true, defval: null });
+    } catch {
+      toast("Não consegui ler esse ficheiro Excel.");
+      return;
+    }
+    const lista = elig().construirIndice(linhas);
+    if (lista.length < 100) {
+      toast("Este ficheiro não parece uma relação geral (poucos trabalhadores).");
+      return;
+    }
+    const meta = {
+      ficheiro: file.name,
+      carregado_em: new Date().toISOString().slice(0, 16).replace("T", " "),
+      pessoas: lista.length,
+      vinculos: lista.reduce((a, p) => a + p.vinculos.length, 0),
+    };
+    try {
+      localStorage.setItem(REL_KEY, JSON.stringify({ meta, dados: lista }));
+    } catch {
+      toast("Relação grande demais para guardar neste browser. Usada só nesta sessão.");
+    }
+    window.INSS_RELACAO = lista;
+    relacaoMeta = meta;
+    idxCache = { ref: null, map: null };
+    relacaoInfo();
+    renderElig();
+    stats();
+    toast(`Relação atualizada: ${meta.pessoas} trabalhadores, ${meta.vinculos} vínculos.`);
+  };
+
+  const reporRelacao = () => {
+    localStorage.removeItem(REL_KEY);
+    window.INSS_RELACAO = RELACAO_REPO;
+    relacaoMeta = null;
+    idxCache = { ref: null, map: null };
+    relacaoInfo();
+    renderElig();
+    stats();
+    toast("Relação do repositório reposta.");
+  };
+
+  const baixarExcluidos = () => {
+    if (!state.month || !state.rows.length) {
+      toast("Sem linhas carregadas.");
+      return;
+    }
+    const prep = elig().prepararLinhas(state.rows, state.month, ctxElig());
+    if (!prep.excluidos.length) {
+      toast("Nenhum excluído por período neste mês.");
+      return;
+    }
+    download(elig().excluidosCsv(prep.excluidos), `excluidos_${state.month.id}.csv`, "text/csv;charset=utf-8");
+    toast(`${prep.excluidos.length} excluídos por período (lista descarregada).`);
+  };
+
+  const avisarBloqueio = (bloqueados) => {
+    const esc = (v) => `"${String(v ?? "").replace(/"/g, '""')}"`;
+    const cab = ["nome_mapa", "pagina", "motivo"].join(",");
+    const linhas = bloqueados.map((b) => [b.nome_mapa || "(sem nome)", b.pagina, b.motivo].map(esc).join(","));
+    toast(`⚠️ ${bloqueados.length} trabalhador(es) por resolver. Exportação bloqueada.`);
+    download([cab, ...linhas].join("\r\n"), `por_resolver_${state.month.id}.csv`, "text/csv;charset=utf-8");
+  };
+
+
+  const initRelacaoStore = async () => {
+    try {
+      const raw = localStorage.getItem(REL_KEY);
+      if (raw) {
+        const o = JSON.parse(raw);
+        if (o && Array.isArray(o.dados) && o.dados.length) {
+          window.INSS_RELACAO = o.dados;
+          relacaoMeta = o.meta || null;
+        }
+      }
+    } catch {
+      relacaoMeta = null;
+    }
+    try {
+      const r = await fetch("data/ja_inscritos.json");
+      if (r.ok) {
+        const o = await r.json();
+        jaRepo = Array.isArray(o.inscritos) ? o.inscritos : [];
+      }
+    } catch {
+      jaRepo = [];
+    }
+    relacaoInfo();
+    renderElig();
+  };
+
+  const storageKey = () => `inss-v3-${state.year}-${state.month?.id}`;
+  const viewKey = () => `inss-view-v3-${state.year}-${state.month?.id}`;
 
   const isTotalRow = (row) => {
     const n = fold(row && row.nome);
@@ -204,24 +456,142 @@
     h: from && from.h ? from.h : 0.014,
   });
 
+  const calcularAlteracoes = () => {
+    const snap = state.snapshot || [];
+    let n = Math.abs(state.rows.length - snap.length);
+    const m = Math.min(state.rows.length, snap.length);
+    for (let k = 0; k < m; k++) if (JSON.stringify(state.rows[k]) !== snap[k]) n++;
+    return n;
+  };
+
+  const atualizarIndicador = () => {
+    const el = $("draft");
+    if (!el) return;
+    if (!state.draft && !state.naoExportado) { el.hidden = true; return; }
+    el.hidden = false;
+    el.classList.toggle("alerta", !!state.naoExportado);
+    el.textContent = state.naoExportado
+      ? `⚠ ${state.alteracoes} alteração(ões) só neste navegador — guarde o rascunho em ficheiro`
+      : "✓ Rascunho guardado em ficheiro";
+  };
+
   const saveDraft = () => {
     if (!state.month) return;
-    localStorage.setItem(
-      storageKey(),
-      JSON.stringify({
-        i: state.i,
-        rows: state.rows,
-      })
-    );
+    const obj = { mes: state.month.id, i: state.i, rows: state.rows, guardado_em: new Date().toISOString() };
+    localStorage.setItem(storageKey(), JSON.stringify(obj));
+    if (window.NUVEM) NUVEM.gravar(state.month.id, obj, { pendentes: state.rows.filter((r) => !r.niss).length, alteracoes: calcularAlteracoes() });
     localStorage.setItem(viewKey(), JSON.stringify(state.view));
     state.draft = true;
-    $("draft").hidden = false;
+    state.alteracoes = calcularAlteracoes();
+    state.naoExportado = state.alteracoes > 0;
+    atualizarIndicador();
   };
 
   let saveTimer = 0;
   const scheduleSave = () => {
     clearTimeout(saveTimer);
     saveTimer = setTimeout(saveDraft, 350);
+  };
+
+  const guardarRascunhoFicheiro = () => {
+    if (!state.month) return;
+    const dados = { versao: 1, mes: state.month.id, i: state.i, rows: state.rows, guardado_em: new Date().toISOString() };
+    const hora = new Date().toTimeString().slice(0, 5).replace(":", "h");
+    download(JSON.stringify(dados), `rascunho_${state.month.id}_${hora}.json`, "application/json");
+    state.snapshot = state.rows.map((r) => JSON.stringify(r));
+    state.alteracoes = 0;
+    state.naoExportado = false;
+    atualizarIndicador();
+    toast("Rascunho guardado em ficheiro. Guarde este ficheiro em lugar seguro.");
+  };
+
+  const carregarRascunhoFicheiro = async (file) => {
+    try {
+      const d = JSON.parse(await file.text());
+      if (!Array.isArray(d.rows)) throw new Error("o ficheiro não tem linhas");
+      if (state.month && d.mes && d.mes !== state.month.id) {
+        if (!window.confirm(`Este rascunho é de ${d.mes}, e o mês aberto é ${state.month.id}. Carregar mesmo assim?`)) return;
+      }
+      state.rows = d.rows.map((r) => ({ ...r, nome: toPortalName(r.nome) }));
+      state.i = Math.min(d.i || 0, Math.max(0, state.rows.length - 1));
+      state.snapshot = state.rows.map((r) => JSON.stringify(r));
+      state.alteracoes = 0;
+      state.naoExportado = false;
+      saveDraft();
+      showRow();
+      toast(`Rascunho carregado: ${state.rows.length} linhas`);
+    } catch (e) {
+      toast("Ficheiro de rascunho inválido: " + e.message);
+    }
+  };
+
+  const exportarPendentes = () => {
+    if (!state.month) return;
+    const prep = elig().prepararLinhas(state.rows, state.month, ctxElig());
+    const pend = prep.bloqueados;
+    if (!pend.length) { toast("Não há trabalhadores por resolver. Pode exportar o TXT."); return; }
+    const esc = (v) => `"${String(v ?? "").replace(/"/g, '""')}"`;
+    const acaoDe = (motivo) => {
+      const m = String(motivo || "");
+      if (/sem NISS/i.test(m)) return "obter NISS (a pessoa não tem NISS no mapa)";
+      if (/não existe na relação/i.test(m)) return "verificar NISS (não existe na relação)";
+      if (/duas palavras/i.test(m)) return "completar nome na relação";
+      if (/8 dígitos/i.test(m)) return "corrigir NISS";
+      return "resolver";
+    };
+    const cab = ["pagina", "nome_mapa", "sal", "motivo", "niss", "acao"].join(",");
+    const linhas = pend.map((b) => [b.pagina, b.nome_mapa, b.sal, b.motivo, b.niss || "", acaoDe(b.motivo)].map(esc).join(","));
+    download([cab, ...linhas].join("\r\n"), `pendentes_${state.month.id}.csv`, "text/csv;charset=utf-8");
+    toast(`${pend.length} por resolver exportados. Preencha a coluna niss e importe.`);
+  };
+
+  const parseCsvLinhas = (texto) => {
+    const linhas = [];
+    texto.replace(/^\uFEFF/, "").split(/\r?\n/).forEach((ln) => {
+      if (!ln.trim()) return;
+      const campos = []; let cur = ""; let q = false;
+      for (let k = 0; k < ln.length; k++) {
+        const ch = ln[k];
+        if (q) {
+          if (ch === '"' && ln[k + 1] === '"') { cur += '"'; k++; }
+          else if (ch === '"') q = false;
+          else cur += ch;
+        } else if (ch === '"') q = true;
+        else if (ch === ",") { campos.push(cur); cur = ""; }
+        else cur += ch;
+      }
+      campos.push(cur);
+      linhas.push(campos);
+    });
+    return linhas;
+  };
+
+  const importarNissResolvidos = async (file) => {
+    if (!state.month) return;
+    const linhas = parseCsvLinhas(await file.text());
+    if (!linhas.length) { toast("Ficheiro vazio"); return; }
+    const cab = linhas.shift().map((c) => c.trim().toLowerCase());
+    const iP = cab.indexOf("pagina"), iN = cab.indexOf("nome_mapa"), iS = cab.indexOf("niss");
+    if (iN < 0 || iS < 0) { toast("Ficheiro sem as colunas nome_mapa e niss"); return; }
+    let aplicados = 0; const naoEnc = []; const invalidos = [];
+    for (const c of linhas) {
+      const niss = String(c[iS] || "").replace(/\D/g, "");
+      if (!niss) continue;
+      if (niss.length > 8 || /^0+$/.test(niss)) { invalidos.push(c[iN]); continue; }
+      const nome = toPortalName(c[iN]);
+      const pag = iP >= 0 ? Number(c[iP]) : null;
+      const idx = state.rows.findIndex((r) => r.nome === nome && (pag == null || Number(r.page) + 1 === pag));
+      if (idx < 0) { naoEnc.push(c); continue; }
+      state.rows[idx].niss = niss.padStart(8, "0");
+      aplicados++;
+    }
+    saveDraft();
+    showRow();
+    if (naoEnc.length) {
+      const esc = (v) => `"${String(v ?? "").replace(/"/g, '""')}"`;
+      download([linhas.length ? cab.join(",") : "", ...naoEnc.map((c) => c.map(esc).join(","))].join("\r\n"), `nao_importados_${state.month.id}.csv`, "text/csv;charset=utf-8");
+    }
+    toast(`NISS aplicados: ${aplicados} · não encontrados: ${naoEnc.length} · inválidos: ${invalidos.length}`);
   };
 
   const parseCsv = (text) => {
@@ -283,7 +653,15 @@
   };
 
   const stats = () => {
-    const ok = state.rows.filter((r) => r.niss).length;
+    // D5: o cabeçalho usa a mesma contagem do aviso de exportação (bloqueados pela
+    // elegibilidade), para aviso e cabeçalho nunca divergirem.
+    let ok = 0;
+    if (state.month && elig()) {
+      const BLOQ = new Set(["sem_niss", "niss_invalido", "niss_fora_relacao", "nome_incompleto"]);
+      ok = state.rows.filter((r) => !BLOQ.has(elig().classificarLinha(r, ctxElig()).estado)).length;
+    } else {
+      ok = state.rows.filter((r) => r.niss).length;
+    }
     $("nissOk").textContent = String(ok);
     $("nissMiss").textContent = String(state.rows.length - ok);
     $("pos").textContent = state.rows.length ? `${state.i + 1}/${state.rows.length}` : "0/0";
@@ -355,16 +733,24 @@
     const page = state.month.pages[row.page] || state.month.pages[0];
     const img = $("scan");
     const want = page || "";
-    const loaded = decodeURI(img.src || "");
-    if (want && !loaded.endsWith(want) && !loaded.includes(encodeURI(want))) {
-      img.onload = () => {
+    if (want) {
+      const loaded = decodeURI(img.src || "");
+      if (!loaded.endsWith(want) && !loaded.includes(encodeURI(want))) {
+        img.onload = () => {
+          layoutTunnel();
+          if (!opts.keepFocus) focusField();
+        };
+        img.src = want;
+      } else {
         layoutTunnel();
-        if (!opts.keepFocus) focusField();
-      };
-      img.src = want;
+      }
     } else {
+      // Clear image when no pages available (e.g., 2018)
+      img.src = "";
+      img.removeAttribute("src");
       layoutTunnel();
     }
+    renderElig();
     stats();
     if (!opts.keepFocus) {
       requestAnimationFrame(focusField);
@@ -380,6 +766,7 @@
       $("f-tot").value = formatKz(row.tot);
     }
     $("f-niss").classList.toggle("empty", !row.niss);
+    renderElig();
     stats();
     scheduleSave();
   };
@@ -456,6 +843,10 @@
     if (location.hash !== `#${month.id}`) location.hash = month.id;
     $("empresa").textContent = `NISS ${month.niss_empresa}`;
     $("filehint").textContent = `Ficheiro final: ${month.filename} (alfabético)`;
+    const hasImages = state.month.pages && state.month.pages.length > 0;
+    if (!hasImages) {
+      $("filehint").textContent = "Mapa original não disponível para este mês. Use apenas os dados extraídos.";
+    }
     document.querySelectorAll(".months button").forEach((b) => {
       b.setAttribute("aria-current", b.dataset.id === month.id ? "true" : "false");
     });
@@ -469,7 +860,16 @@
     }
     const text = await res.text();
     let rows = parseCsv(text);
-    const saved = localStorage.getItem(storageKey());
+    let saved = localStorage.getItem(storageKey());
+    if (window.NUVEM && NUVEM.utilizador()) {
+      const remoto = await NUVEM.carregarRascunho(month.id).catch((e) => { toast("Nuvem: " + e.message); return null; });
+      let dataLocal = new Date(0);
+      try { if (saved) dataLocal = new Date(JSON.parse(saved).guardado_em || 0); } catch { dataLocal = new Date(0); }
+      if (remoto && Array.isArray(remoto.rows) && new Date(remoto.atualizado_em) > dataLocal) {
+        saved = JSON.stringify({ mes: remoto.mes, i: remoto.i, rows: remoto.rows, guardado_em: remoto.atualizado_em });
+        toast(`Rascunho da nuvem (por ${remoto.atualizado_por}) carregado.`);
+      }
+    }
     if (saved) {
       try {
         const draft = JSON.parse(saved);
@@ -488,8 +888,37 @@
       state.i = 0;
     }
     state.rows = rows.map((r) => ({ ...r, nome: toPortalName(r.nome) }));
+    state.snapshot = parseCsv(text).filter((r) => !isTotalRow(r)).map((r) => JSON.stringify({ ...r, nome: toPortalName(r.nome) }));
+    state.alteracoes = calcularAlteracoes();
+    state.naoExportado = state.alteracoes > 0;
+    atualizarIndicador();
     state.col = 0;
     showRow();
+  };
+
+  const renderConta = () => {
+    const u = window.NUVEM && NUVEM.utilizador();
+    $("conta-info").textContent = u ? `Sessão: ${u.email}` : "Sem sessão";
+    $("btn-sair").hidden = !u;
+    $("login-gate").hidden = !!u;
+    if (!u) setTimeout(() => $("lg-email") && $("lg-email").focus(), 0);
+  };
+
+  const renderEquipa = async () => {
+    const box = $("equipa-lista");
+    if (!window.NUVEM || !NUVEM.utilizador()) { box.textContent = "Entre na sua conta para ver o estado da equipa."; return; }
+    try {
+      const meses = await NUVEM.listarMeses();
+      box.innerHTML = "";
+      if (!meses.length) { box.textContent = "Ainda não há meses registados."; return; }
+      meses.forEach((m) => {
+        const linha = document.createElement("div");
+        const quando = m.atualizado_em ? new Date(m.atualizado_em).toLocaleString("pt-PT", { dateStyle: "short", timeStyle: "short" }) : "";
+        const estado = m.estado === "em_edicao" ? `em edição por ${m.em_edicao_por || "?"}` : m.estado.replace("_", " ");
+        linha.textContent = `${m.id} · ${estado} · ${m.pendentes} por resolver · ${m.alteracoes} alterações · última gravação: ${m.atualizado_por || "?"} ${quando}`;
+        box.appendChild(linha);
+      });
+    } catch (e) { box.textContent = "Erro ao ler a equipa: " + e.message; }
   };
 
   const buildYears = () => {
@@ -511,9 +940,11 @@
       yearSelector.appendChild(btn);
     });
     if (state.years.length) {
-      const firstYear = state.years[0];
-      state.year = String(firstYear);
-      document.querySelector(`.year-selector button[data-year="${firstYear}"]`).classList.add("active");
+      // Se o link indicar um mês (#AAAA-MM), abre o ano desse mês; senão, o primeiro ano
+      const hashAno = (location.hash.match(/^#(\d{4})-\d{2}$/) || [])[1];
+      const anoInicial = state.years.map(String).includes(hashAno) ? hashAno : String(state.years[0]);
+      state.year = anoInicial;
+      document.querySelector(`.year-selector button[data-year="${anoInicial}"]`).classList.add("active");
     }
   };
 
@@ -539,8 +970,13 @@
       return;
     }
     const m = state.month;
-    const rows = state.rows
-      .filter((r) => (r.nome || "").trim() && !isTotalRow(r))
+    const prep = elig().prepararLinhas(state.rows, m, ctxElig());
+    if (prep.bloqueados.length) {
+      avisarBloqueio(prep.bloqueados);
+      return;
+    }
+    const rows = prep.incluidos
+      .map((x) => ({ niss: x.niss, nome: x.pessoa.nome, sal: x.sal, rem: x.rem }))
       .sort((a, b) => fold(a.nome).localeCompare(fold(b.nome), "pt"));
     const aoa = [];
     aoa[0] = ["Folha de Remuneração Normal | Complementar"];
@@ -554,22 +990,10 @@
     aoa[9] = ["Inscrição Inss", "Nome", "Salário Base", "Remunerações Adicionais", "Total"];
     rows.forEach((r, idx) => {
       const excelRow = 11 + idx;
-      aoa[10 + idx] = [
-        r.niss || "",
-        toPortalName(r.nome),
-        num(r.sal),
-        num(r.rem),
-        { t: "n", f: `C${excelRow}+D${excelRow}` },
-      ];
+      aoa[10 + idx] = [r.niss, toPortalName(r.nome), num(r.sal), num(r.rem), { t: "n", f: `C${excelRow}+D${excelRow}` }];
     });
     const lastData = 10 + rows.length;
-    aoa[lastData] = [
-      "Fim Informações dos Trabalhadores",
-      "",
-      "",
-      "",
-      { t: "n", f: `SUM(E11:E${lastData})` },
-    ];
+    aoa[lastData] = ["Fim Informações dos Trabalhadores", "", "", "", { t: "n", f: `SUM(E11:E${lastData})` }];
     const ws = XLSX.utils.aoa_to_sheet(aoa);
     ws["!cols"] = [{ wch: 16 }, { wch: 42 }, { wch: 16 }, { wch: 24 }, { wch: 16 }];
     for (let R = 10; R < lastData; R++) {
@@ -581,7 +1005,8 @@
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, "Folha");
     XLSX.writeFile(wb, m.filename || "mapa.xlsx");
-    toast(`Gerado ${m.filename} · ${rows.length} trabalhadores`);
+    const extra = prep.excluidos.length ? ` · ${prep.excluidos.length} excluídos por período (ver lista)` : "";
+    toast(`Gerado ${m.filename} · ${rows.length} trabalhadores${extra}`);
   };
 
   const pad = (s, n) => String(s).slice(0, n).padEnd(n, " ");
@@ -609,88 +1034,18 @@
 
   const generateTxt = () => {
     const m = state.month;
-    const skipped = [];
-    const rows = state.rows.filter((r) => {
-      if (isTotalRow(r) || !(r.nome || "").trim()) return false;
-      if (!String(r.niss || "").replace(/\D/g, "")) {
-        skipped.push(r.nome);
-        return false;
+    const res = elig().gerarTxt(state.rows, m, ctxElig(), { ordem: "nome" });
+    if (!res.ok) {
+      if (res.bloqueados && res.bloqueados.length) {
+        avisarBloqueio(res.bloqueados);
+      } else {
+        toast(`Erro interno: ${res.erro || "não foi possível gerar o ficheiro"}`);
       }
-      return true;
-    });
-    rows.sort((a, b) => fold(a.nome).localeCompare(fold(b.nome), "pt"));
-    if (!rows.length) {
-      toast("Nenhum trabalhador com NISS para o TXT.");
       return;
     }
-    const dd = "01";
-    const mm = String(m.mes).padStart(2, "0");
-    const yyyy = String(m.ano);
-    const nissEmp = digits(m.niss_empresa, 9);
-    const nif = digits(m.nif, 10);
-    const empresa = pad(
-      String(m.empresa || "")
-        .normalize("NFKD")
-        .replace(/[\u0300-\u036f]/g, "")
-        .toUpperCase(),
-      70
-    );
-    const header =
-      "00" +
-      dd +
-      mm +
-      yyyy +
-      "N" +
-      nissEmp +
-      " ".repeat(20) +
-      nif +
-      " ".repeat(10) +
-      empresa +
-      "00000" +
-      " ".repeat(45);
-    const date = dd + mm + yyyy;
-    let sumA = 0;
-    let sumB = 0;
-    const body = rows.map((r) => {
-      const niss = digits(r.niss, 8);
-      const sal = money14(r.sal);
-      const rem = money14(r.rem);
-      sumA += Number(sal);
-      sumB += Number(rem);
-      return (
-        "100" +
-        niss +
-        " ".repeat(20) +
-        txtName(r.nome) +
-        "00000" +
-        sal +
-        rem +
-        date +
-        " ".repeat(38)
-      );
-    });
-    const trailer =
-      "99" +
-      digits(rows.length, 10) +
-      digits(sumA, 24) +
-      digits(sumB, 14) +
-      " ".repeat(130);
-    const all = [header, ...body, trailer];
-    const bad = all.filter((l) => l.length !== 180);
-    if (bad.length) {
-      toast(`Erro interno: ${bad.length} linhas ≠ 180 caracteres`);
-      return;
-    }
-    const blob = new Blob([all.join("\n") + "\n"], { type: "text/plain;charset=US-ASCII" });
-    const tipo = "1";
-    const fname = `${String(m.niss_empresa).replace(/^0+/, "")}${yyyy}${mm}${tipo}.TXT`;
-    const link = document.createElement("a");
-    link.href = URL.createObjectURL(blob);
-    link.download = fname;
-    link.click();
-    URL.revokeObjectURL(link.href);
-    const extra = skipped.length ? ` · ${skipped.length} sem NISS omitidos` : "";
-    toast(`Gerado ${fname} · ${rows.length} trabalhadores${extra}`);
+    download(res.conteudo, res.nomeFicheiro, "text/plain;charset=US-ASCII");
+    const extra = res.excluidos.length ? ` · ${res.excluidos.length} excluídos por período (ver lista)` : "";
+    toast(`Gerado ${res.nomeFicheiro} · ${res.incluidos.length} trabalhadores${extra}`);
   };
 
   const bindView = () => {
@@ -820,6 +1175,50 @@
     $("btn-ins-above").addEventListener("click", () => insertAt(-1));
     $("btn-ins-below").addEventListener("click", () => insertAt(1));
     $("btn-del").addEventListener("click", () => deleteRow());
+    $("rel-file").addEventListener("change", (e) => {
+      const f = e.target.files[0];
+      if (f) carregarRelacao(f);
+      e.target.value = "";
+    });
+    $("btn-rel-repor").addEventListener("click", reporRelacao);
+    $("login-form").addEventListener("submit", async (ev) => {
+      ev.preventDefault();
+      if (!window.NUVEM) { $("lg-erro").textContent = "Serviço de contas indisponível. Verifique a ligação à internet."; return; }
+      $("lg-erro").textContent = "A entrar…";
+      $("lg-entrar").disabled = true;
+      try {
+        await NUVEM.entrar($("lg-email").value.trim(), $("lg-pass").value);
+        $("lg-pass").value = "";
+        $("lg-erro").textContent = "";
+        renderConta(); renderEquipa();
+        if (state.month) loadMonth(state.month);
+      } catch (e) {
+        $("lg-erro").textContent = e.message;
+      } finally {
+        $("lg-entrar").disabled = false;
+      }
+    });
+    $("btn-sair").addEventListener("click", async () => {
+      await NUVEM.sair(); renderConta(); renderEquipa(); toast("Sessão terminada. Entre novamente para continuar.");
+    });
+    $("btn-equipa-atualizar").addEventListener("click", renderEquipa);
+    if (window.NUVEM) {
+      NUVEM.init().then(() => { renderConta(); renderEquipa(); }).catch(() => renderConta());
+      setInterval(renderEquipa, 60000);
+    }
+    $("btn-draft-save").addEventListener("click", guardarRascunhoFicheiro);
+    $("draft-file").addEventListener("change", (e) => { const f = e.target.files[0]; if (f) carregarRascunhoFicheiro(f); e.target.value = ""; });
+    $("btn-pend").addEventListener("click", exportarPendentes);
+    $("nissimp-file").addEventListener("change", (e) => { const f = e.target.files[0]; if (f) importarNissResolvidos(f); e.target.value = ""; });
+    $("btn-ja").addEventListener("click", marcarJaInscrito);
+    $("btn-ja-export").addEventListener("click", exportarJa);
+    $("ja-file").addEventListener("change", (e) => {
+      const f = e.target.files[0];
+      if (f) importarJa(f);
+      e.target.value = "";
+    });
+    $("btn-excl").addEventListener("click", baixarExcluidos);
+    initRelacaoStore();
     $("btn-xlsx").addEventListener("click", generateXlsx);
     $("btn-txt").addEventListener("click", generateTxt);
     $("btn-discard").addEventListener("click", () => {
@@ -831,7 +1230,10 @@
     });
     bindView();
     window.addEventListener("resize", layoutTunnel);
-    window.addEventListener("beforeunload", saveDraft);
+    window.addEventListener("beforeunload", (e) => {
+      saveDraft();
+      if (state.naoExportado) { e.preventDefault(); e.returnValue = ""; }
+    });
 
     document.addEventListener("keydown", (e) => {
       if (e.target && e.target.type === "range") return;
