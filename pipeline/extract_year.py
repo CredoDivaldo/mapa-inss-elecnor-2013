@@ -217,7 +217,9 @@ def limpar_nome(s: str) -> str:
     cleaned = []
     for x in toks:
         if is_cat_tok(x):
-            if len(cleaned) >= 2:
+            # Allow up to 3 name tokens before stopping at category words
+            # This prevents truncation like "Ajudante Ci" from "Ajudante Civil"
+            if len(cleaned) >= 3:
                 break
             continue
         cleaned.append(x)
