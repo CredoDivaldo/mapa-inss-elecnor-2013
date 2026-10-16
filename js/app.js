@@ -890,10 +890,21 @@
 
   const renderConta = () => {
     const u = window.NUVEM && NUVEM.utilizador();
-    $("conta-info").textContent = u ? `Sessão: ${u.email}` : "Sem sessão";
-    $("btn-sair").hidden = !u;
-    $("login-gate").hidden = !!u;
-    if (!u) setTimeout(() => $("lg-email") && $("lg-email").focus(), 0);
+    const nome = u ? u.nome : "";
+    $("perfil-nome").textContent = nome || "Sem perfil";
+    $("perfil-avatar").textContent = nome ? nome[0] : "?";
+    $("perfil-gate").hidden = !!u;
+  };
+
+  const escolherPerfil = (nome) => {
+    if (!window.NUVEM) return;
+    NUVEM.definirPerfil(nome);
+    $("perfil-gate").hidden = true;
+    renderConta();
+    renderEquipa();
+    toast(`Bem-vindo, ${nome}`);
+    if (state.month) loadMonth(state.month);
+    if (window.TOUR && TOUR.primeiraVisita()) setTimeout(() => TOUR.start(), 600);
   };
 
   const renderEquipa = async () => {
@@ -1173,31 +1184,19 @@
       e.target.value = "";
     });
     $("btn-rel-repor").addEventListener("click", reporRelacao);
-    $("login-form").addEventListener("submit", async (ev) => {
-      ev.preventDefault();
-      if (!window.NUVEM) { $("lg-erro").textContent = "Serviço de contas indisponível. Verifique a ligação à internet."; return; }
-      $("lg-erro").textContent = "A entrar…";
-      $("lg-entrar").disabled = true;
-      try {
-        await NUVEM.entrar($("lg-email").value.trim(), $("lg-pass").value);
-        $("lg-pass").value = "";
-        $("lg-erro").textContent = "";
-        renderConta(); renderEquipa();
-        if (state.month) loadMonth(state.month);
-      } catch (e) {
-        $("lg-erro").textContent = e.message;
-      } finally {
-        $("lg-entrar").disabled = false;
-      }
-    });
-    $("btn-sair").addEventListener("click", async () => {
-      await NUVEM.sair(); renderConta(); renderEquipa(); toast("Sessão terminada. Entre novamente para continuar.");
-    });
+    document.querySelectorAll(".perfil-opcao").forEach((b) => b.addEventListener("click", () => escolherPerfil(b.dataset.perfil)));
+    $("perfil-chip").addEventListener("click", () => { $("perfil-gate").hidden = false; });
+    $("btn-ferramentas").addEventListener("click", () => { $("modal-ferramentas").hidden = false; renderEquipa(); });
+    $("btn-fechar-ferramentas").addEventListener("click", () => { $("modal-ferramentas").hidden = true; });
+    $("modal-ferramentas").addEventListener("click", (e) => { if (e.target.id === "modal-ferramentas") $("modal-ferramentas").hidden = true; });
+    document.addEventListener("keydown", (e) => { if (e.key === "Escape") $("modal-ferramentas").hidden = true; });
+    $("btn-tutorial").addEventListener("click", () => { if (window.TOUR) TOUR.start(); });
     $("btn-equipa-atualizar").addEventListener("click", renderEquipa);
     if (window.NUVEM) {
       NUVEM.init().then(() => { renderConta(); renderEquipa(); }).catch(() => renderConta());
       setInterval(renderEquipa, 60000);
     }
+    renderConta();
     $("btn-draft-save").addEventListener("click", guardarRascunhoFicheiro);
     $("draft-file").addEventListener("change", (e) => { const f = e.target.files[0]; if (f) carregarRascunhoFicheiro(f); e.target.value = ""; });
     $("btn-pend").addEventListener("click", exportarPendentes);

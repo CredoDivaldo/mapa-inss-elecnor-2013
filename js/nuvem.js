@@ -1,14 +1,16 @@
-/* Persistência partilhada (Supabase). Só funciona com sessão iniciada.
- * Sem sessão, a app continua a funcionar só com rascunho local (localStorage). */
+/* Persistência partilhada (Supabase) com perfis de utilizador.
+ * Sem login com palavra-passe: a app entra em modo anónimo (sessão silenciosa) e o
+ * perfil escolhido no ecrã inicial (Credo, Djamila, Mauricio) identifica quem grava.
+ * Sem Supabase (offline / CDN bloqueado) a app continua a funcionar só com rascunho local. */
 (function () {
   const URL = "https://cbbnrjsszgkmqvijfdxq.supabase.co";
   const KEY = "sb_publishable_MaZudV1Iedk4S6_qpRIHrg_tAJy2EoZ";
+  const CHAVE_PERFIL = "inss-perfil";
+  const PERFIS = ["Credo", "Djamila", "Mauricio"];
   let sb = null;
-  let utilizador = null;     // { email, nome }
+  let perfil = null;
   let timer = 0;
-  let pendente = null;      // última gravação à espera do atraso
-
-  const nomeDe = (u) => (u && u.email ? u.email.split("@")[0] : "desconhecido");
+  let pendente = null;
 
   const cliente = () => {
     if (!sb && window.supabase) sb = window.supabase.createClient(URL, KEY);
@@ -16,40 +18,36 @@
   };
 
   const init = async () => {
+    perfil = localStorage.getItem(CHAVE_PERFIL) || null;
     const c = cliente();
-    if (!c) return null;
+    if (!c) return perfil;
     const { data } = await c.auth.getSession();
-    if (data && data.session) {
-      utilizador = { email: data.session.user.email, nome: nomeDe(data.session.user) };
+    if (!data || !data.session) {
+      const r = await c.auth.signInAnonymously();
+      if (r.error) console.warn("nuvem: sessão anónima:", r.error.message);
     }
-    return utilizador;
+    return perfil;
   };
 
-  const entrar = async (email, password) => {
-    const c = cliente();
-    const { data, error } = await c.auth.signInWithPassword({ email, password });
-    if (error) throw new Error(error.message === "Invalid login credentials" ? "Email ou palavra-passe incorrectos" : error.message);
-    utilizador = { email: data.user.email, nome: nomeDe(data.user) };
-    return utilizador;
+  const definirPerfil = (nome) => {
+    if (!PERFIS.includes(nome)) throw new Error("Perfil desconhecido: " + nome);
+    perfil = nome;
+    localStorage.setItem(CHAVE_PERFIL, nome);
+    return perfil;
   };
 
-  const sair = async () => {
-    const c = cliente();
-    if (c) await c.auth.signOut();
-    utilizador = null;
-  };
+  const utilizador = () => (perfil ? { nome: perfil } : null);
 
   const carregarRascunho = async (mesId) => {
     const c = cliente();
-    if (!c || !utilizador) return null;
+    if (!c || !perfil) return null;
     const { data, error } = await c.from("rascunhos").select("dados, atualizado_em, atualizado_por").eq("mes_id", mesId).maybeSingle();
     if (error) throw new Error(error.message);
     return data ? { ...data.dados, atualizado_em: data.atualizado_em, atualizado_por: data.atualizado_por } : null;
   };
 
-  // grava (com atraso): rascunho completo + resumo do mês
   const gravar = (mesId, dados, resumo) => {
-    if (!cliente() || !utilizador) return;
+    if (!cliente() || !perfil) return;
     pendente = { mesId, dados, resumo };
     clearTimeout(timer);
     timer = setTimeout(executarGravacao, 1500);
@@ -57,7 +55,7 @@
 
   const executarGravacao = async () => {
     const p = pendente; pendente = null;
-    if (!p || !utilizador) return;
+    if (!p || !perfil) return;
     const c = cliente();
     const agora = new Date().toISOString();
     const [ano, mes] = p.mesId.split("-").map(Number);
@@ -65,24 +63,22 @@
     const m = await c.from("meses").upsert({
       id: p.mesId, ano, mes, estado,
       pendentes: p.resumo.pendentes, alteracoes: p.resumo.alteracoes,
-      em_edicao_por: utilizador.nome, em_edicao_desde: agora,
-      atualizado_em: agora, atualizado_por: utilizador.nome,
+      em_edicao_por: perfil, em_edicao_desde: agora,
+      atualizado_em: agora, atualizado_por: perfil,
     });
     if (m.error) { console.warn("nuvem meses:", m.error.message); return; }
-    const r = await c.from("rascunhos").upsert({
-      mes_id: p.mesId, dados: p.dados, atualizado_em: agora, atualizado_por: utilizador.nome,
-    });
+    const r = await c.from("rascunhos").upsert({ mes_id: p.mesId, dados: p.dados, atualizado_em: agora, atualizado_por: perfil });
     if (r.error) console.warn("nuvem rascunho:", r.error.message);
-    await c.from("historico").insert({ mes_id: p.mesId, utilizador: utilizador.nome, acao: "gravou rascunho", detalhe: `${p.resumo.pendentes} por resolver · ${p.resumo.alteracoes} alterações` });
+    await c.from("historico").insert({ mes_id: p.mesId, utilizador: perfil, acao: "gravou rascunho", detalhe: `${p.resumo.pendentes} por resolver · ${p.resumo.alteracoes} alterações` });
   };
 
   const listarMeses = async () => {
     const c = cliente();
-    if (!c || !utilizador) return [];
+    if (!c || !perfil) return [];
     const { data, error } = await c.from("meses").select("*").order("id");
     if (error) throw new Error(error.message);
     return data || [];
   };
 
-  window.NUVEM = { init, entrar, sair, carregarRascunho, gravar, listarMeses, utilizador: () => utilizador };
+  window.NUVEM = { init, definirPerfil, utilizador, perfis: () => PERFIS.slice(), carregarRascunho, gravar, listarMeses };
 })();
