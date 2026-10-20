@@ -82,6 +82,17 @@
 
   const toPortalName = (s) => String(s || "").toLocaleUpperCase("pt-PT");
 
+  // Chave de comparação de nomes: ignora maiúsculas/minúsculas, acentos, cedilhas e espaços extra.
+  // "José Ançã" == "JOSE ANCA" == " jose  anca ".
+  const chaveNome = (s) =>
+    String(s || "")
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .toUpperCase()
+      .replace(/[^A-Z0-9 ]+/g, " ")
+      .replace(/\s+/g, " ")
+      .trim();
+
   const relacao = () => window.INSS_RELACAO || [];
 
   const searchRelacao = (q, by) => {
@@ -596,9 +607,9 @@
       const niss = String(c[iS] || "").replace(/\D/g, "");
       if (!niss) continue;
       if (niss.length > 8 || /^0+$/.test(niss)) { invalidos.push(c[iN]); continue; }
-      const nome = toPortalName(c[iN]);
+      const chave = chaveNome(c[iN]);
       const pag = iP >= 0 ? Number(c[iP]) : null;
-      const idx = state.rows.findIndex((r) => r.nome === nome && (pag == null || Number(r.page) + 1 === pag));
+      const idx = state.rows.findIndex((r) => chaveNome(r.nome) === chave && (pag == null || Number(r.page) + 1 === pag));
       if (idx < 0) { naoEnc.push(c); continue; }
       state.rows[idx].niss = niss.padStart(8, "0");
       aplicados++;
