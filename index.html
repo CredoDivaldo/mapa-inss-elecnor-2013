@@ -427,8 +427,9 @@
     <div class="grupo">
       <span class="grupo-titulo">Já inscritos</span>
       <button type="button" id="btn-ja" title="Marca a pessoa atual como já inscrita (sai da lista de pendentes)">Marcar pessoa atual</button>
+      <button type="button" id="btn-ja-csv" title="Lista de já inscritos com nome e NISS, para abrir no Excel">Exportar (CSV)</button>
       <button type="button" id="btn-ja-export" title="Descarrega a lista de já inscritos (JSON)">Exportar (JSON)</button>
-      <label class="btn-file" title="Carrega uma lista de já inscritos (JSON)">Importar (JSON)<input type="file" id="ja-file" accept=".json" /></label>
+      <label class="btn-file" title="Carrega uma lista de já inscritos: CSV com nome e NISS, ou JSON">Importar (CSV ou JSON)<input type="file" id="ja-file" accept=".csv,.json" /></label>
     </div>
   </div>
   <div class="modal" id="modal-ferramentas" hidden>
@@ -524,6 +525,6 @@
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="js/nuvem.js"></script>
   <script src="js/tutorial.js"></script>
-  <script src="js/app.js?v=9"></script>
+  <script src="js/app.js?v=10"></script>
 </body>
 </html>

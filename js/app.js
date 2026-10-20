@@ -303,15 +303,29 @@
     toast(`Exportados ${dados.inscritos.length} já inscritos.`);
   };
 
+  const exportarJaCsv = () => {
+    const esc = (v) => `"${String(v ?? "").replace(/"/g, '""')}"`;
+    const linhas = readJa().map((x) => [x.nome, String(x.niss).padStart(8, "0"), x.marcado_em || "", x.mes || ""].map(esc).join(","));
+    download(["nome,niss,marcado_em,mes", ...linhas].join("\r\n"), "ja_inscritos.csv", "text/csv;charset=utf-8");
+    toast(`Exportados ${linhas.length} já inscritos (CSV).`);
+  };
+
   const importarJa = async (file) => {
-    let obj;
-    try {
-      obj = JSON.parse(await file.text());
-    } catch {
-      toast("Ficheiro JSON inválido.");
-      return;
+    const texto = await file.text();
+    let novos;
+    if (/\.csv$/i.test(file.name) || !/^\s*[\[{]/.test(texto)) {
+      const linhas = parseCsvLinhas(texto);
+      if (!linhas.length) { toast("Ficheiro vazio."); return; }
+      const cab = linhas.shift().map((c) => c.trim().toLowerCase());
+      const iN = cab.findIndex((c) => c.includes("nome"));
+      const iS = cab.findIndex((c) => c.includes("niss") || c.includes("segur"));
+      if (iS < 0) { toast("CSV sem coluna niss (ou número de segurança social)."); return; }
+      novos = linhas.map((c) => ({ niss: c[iS], nome: iN >= 0 ? c[iN] : "" }));
+    } else {
+      let obj;
+      try { obj = JSON.parse(texto); } catch { toast("Ficheiro JSON inválido."); return; }
+      novos = Array.isArray(obj) ? obj : obj.inscritos || [];
     }
-    const novos = Array.isArray(obj) ? obj : obj.inscritos || [];
     const lista = readJa();
     const set = new Set(lista.map((x) => String(x.niss).padStart(8, "0")));
     let add = 0;
@@ -571,8 +585,12 @@
     const linhas = parseCsvLinhas(await file.text());
     if (!linhas.length) { toast("Ficheiro vazio"); return; }
     const cab = linhas.shift().map((c) => c.trim().toLowerCase());
-    const iP = cab.indexOf("pagina"), iN = cab.indexOf("nome_mapa"), iS = cab.indexOf("niss");
-    if (iN < 0 || iS < 0) { toast("Ficheiro sem as colunas nome_mapa e niss"); return; }
+    const norm = (t) => String(t || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().trim();
+    const achar = (tests) => cab.findIndex((c) => tests.some((t) => t(norm(c))));
+    const iP = achar([(c) => c === "pagina" || c === "página" || c === "page"]);
+    const iN = achar([(c) => c === "nome_mapa" || c === "nome" || c.startsWith("nome do") || c.startsWith("nome completo")]);
+    const iS = achar([(c) => c.includes("niss") || c.includes("seguranca") || c.includes("num") && c.includes("social")]);
+    if (iN < 0 || iS < 0) { toast("Ficheiro sem coluna de nome e coluna de NISS (ou número de segurança social)."); return; }
     let aplicados = 0; const naoEnc = []; const invalidos = [];
     for (const c of linhas) {
       const niss = String(c[iS] || "").replace(/\D/g, "");
@@ -1203,6 +1221,7 @@
     $("nissimp-file").addEventListener("change", (e) => { const f = e.target.files[0]; if (f) importarNissResolvidos(f); e.target.value = ""; });
     $("btn-ja").addEventListener("click", marcarJaInscrito);
     $("btn-ja-export").addEventListener("click", exportarJa);
+    $("btn-ja-csv").addEventListener("click", exportarJaCsv);
     $("ja-file").addEventListener("change", (e) => {
       const f = e.target.files[0];
       if (f) importarJa(f);
