@@ -409,7 +409,13 @@
       if (raw) {
         const o = JSON.parse(raw);
         if (o && Array.isArray(o.dados) && o.dados.length) {
-          window.INSS_RELACAO = o.dados;
+          const porNiss = new Map(o.dados.map((p) => [String(p.niss), p]));
+          // Mantém a relação carregada pelo contabilista e incorpora pessoas novas
+          // que tenham sido acrescentadas à relação publicada desde esse upload.
+          for (const p of RELACAO_REPO) {
+            if (!porNiss.has(String(p.niss))) porNiss.set(String(p.niss), p);
+          }
+          window.INSS_RELACAO = [...porNiss.values()];
           relacaoMeta = o.meta || null;
         }
       }
