@@ -409,10 +409,10 @@
       if (raw) {
         const o = JSON.parse(raw);
         if (o && Array.isArray(o.dados) && o.dados.length) {
-          const porNiss = new Map(o.dados.map((p) => [String(p.niss), p]));
-          // Mantém a relação carregada pelo contabilista e incorpora pessoas novas
-          // que tenham sido acrescentadas à relação publicada desde esse upload.
-          for (const p of RELACAO_REPO) {
+          const porNiss = new Map(RELACAO_REPO.map((p) => [String(p.niss), p]));
+          // A relação oficial publicada é a mais recente. Mantém apenas os registos
+          // adicionais do upload local que ainda não existam na relação oficial.
+          for (const p of o.dados) {
             if (!porNiss.has(String(p.niss))) porNiss.set(String(p.niss), p);
           }
           window.INSS_RELACAO = [...porNiss.values()];
