@@ -404,24 +404,10 @@
 
 
   const initRelacaoStore = async () => {
-    try {
-      const raw = localStorage.getItem(REL_KEY);
-      if (raw) {
-        const o = JSON.parse(raw);
-        if (o && Array.isArray(o.dados) && o.dados.length) {
-          const porNiss = new Map(RELACAO_REPO.map((p) => [String(p.niss), p]));
-          // A relação oficial publicada é a mais recente. Mantém apenas os registos
-          // adicionais do upload local que ainda não existam na relação oficial.
-          for (const p of o.dados) {
-            if (!porNiss.has(String(p.niss))) porNiss.set(String(p.niss), p);
-          }
-          window.INSS_RELACAO = [...porNiss.values()];
-          relacaoMeta = o.meta || null;
-        }
-      }
-    } catch {
-      relacaoMeta = null;
-    }
+    // A relação oficial de Novembro de 2026 é completa. Não restaurar uploads
+    // antigos do browser, que podem voltar a introduzir NISS já ausentes da fonte.
+    relacaoMeta = null;
+    window.INSS_RELACAO = RELACAO_REPO;
     try {
       const r = await fetch("data/ja_inscritos.json");
       if (r.ok) {
