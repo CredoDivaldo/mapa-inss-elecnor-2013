@@ -318,27 +318,25 @@
     #equipa-lista { font-size:12px; line-height:1.6; max-height:200px; overflow:auto; padding:4px 0; }
     .login-gate { position:fixed; inset:0; background:rgba(20,18,14,.88); display:flex; align-items:center; justify-content:center; z-index:9999; }
     .login-gate[hidden] { display:none; }
-    .login-card { background:#fff; color:#1f1b16; padding:28px 26px; border-radius:12px; width:min(380px,92vw); display:grid; gap:12px; box-shadow:0 10px 40px rgba(0,0,0,.4); }
-    .login-card h1 { font-size:18px; margin:0; }
-    .login-card p { margin:0; font-size:13px; opacity:.8; }
-    .login-card label { display:grid; gap:4px; font-size:13px; font-weight:600; }
-    .login-card input { font-size:15px; padding:9px 10px; border:1px solid #bbb; border-radius:6px; }
-    .login-card button { font-size:15px; padding:10px; border-radius:6px; cursor:pointer; }
-    .login-card .lg-erro { color:#b91c1c; min-height:1em; font-weight:600; }
-    .login-card .lg-ajuda { font-size:12px; opacity:.7; }
+    .perfil-lista { display:grid; grid-template-columns:repeat(3,1fr); gap:10px; margin-top:8px; }
+    .perfil-opcao { min-height:92px; display:grid; align-content:center; justify-items:center; gap:8px; background:#f5f2eb; color:#1f1b16; border:1px solid #bbb; border-radius:8px; padding:12px 8px; font-size:15px; font-weight:700; cursor:pointer; }
+    .perfil-opcao:hover, .perfil-opcao:focus-visible { border-color:#a87513; outline:2px solid #a87513; outline-offset:2px; }
+    .perfil-avatar { display:inline-grid; place-items:center; width:28px; height:28px; border-radius:50%; background:#a87513; color:#fff; font-weight:700; }
+    @media (max-width:520px) { .perfil-lista { grid-template-columns:1fr; } .perfil-opcao { min-height:60px; grid-template-columns:36px 1fr; justify-items:start; text-align:left; } }
   </style>
 </head>
 <body>
-  <div id="login-gate" class="login-gate">
-    <form id="login-form" class="login-card" autocomplete="on">
-      <h1>INSS Elecnor · Mapas 2018</h1>
-      <p>Entre com a sua conta para trabalhar nos mapas.</p>
-      <label>Email<input type="email" id="lg-email" required autocomplete="username" /></label>
-      <label>Palavra-passe<input type="password" id="lg-pass" required autocomplete="current-password" /></label>
-      <button type="submit" class="primary" id="lg-entrar">Entrar</button>
-      <p class="lg-erro" id="lg-erro" role="alert"></p>
-      <p class="lg-ajuda">Não tem conta? Peça ao administrador da equipa.</p>
-    </form>
+  <div id="perfil-gate" class="login-gate">
+    <div class="login-card" role="dialog" aria-modal="true" aria-labelledby="perfil-titulo">
+      <h1 id="perfil-titulo">Quem está a usar?</h1>
+      <p>INSS Elecnor · Mapas 2018</p>
+      <p>Escolha o seu nome para continuar. As alterações ficam registadas com este perfil.</p>
+      <div class="perfil-lista">
+        <button type="button" class="perfil-opcao" data-perfil="Credo"><span class="perfil-avatar">C</span><span>Credo</span></button>
+        <button type="button" class="perfil-opcao" data-perfil="Djamila"><span class="perfil-avatar">D</span><span>Djamila</span></button>
+        <button type="button" class="perfil-opcao" data-perfil="Mauricio"><span class="perfil-avatar">M</span><span>Mauricio</span></button>
+      </div>
+    </div>
   </div>
   <!--
     THESIS: a light-table slit over the scanned payroll, not a dashboard of cards.
@@ -376,8 +374,8 @@
   <div class="toolbar relacao-bar" id="relacao-bar">
     <div class="grupo" id="grupo-conta">
       <span class="grupo-titulo">0 · Conta e equipa</span>
-      <span id="conta-info">Sem sessão</span>
-      <button type="button" id="btn-sair" hidden>Sair</button>
+      <span id="conta-info">Escolha o seu perfil</span>
+      <button type="button" id="btn-perfil">Escolher utilizador</button>
       <details id="equipa"><summary>Estado da equipa (por mês)</summary>
         <div id="equipa-lista">—</div>
         <button type="button" id="btn-equipa-atualizar">Atualizar</button>
