@@ -3,6 +3,12 @@
   const COLS = ["niss", "nome", "sal", "rem"];
   const ALL = ["niss", "nome", "sal", "rem", "tot"];
   const $ = (id) => document.getElementById(id);
+  // Os scans ficam na raiz do repositório; a app é servida tanto na raiz como em /webapp/.
+  const configScript = document.querySelector('script[src$="data/config.js"]');
+  const imageBase = configScript
+    ? new URL(configScript.src.includes("/webapp/data/config.js") ? "../../" : "../", configScript.src)
+    : new URL("./", document.baseURI);
+  const imageUrl = (path) => new URL(path, imageBase).href;
 
   const defaultView = () => ({
     zoom: 1.55,
@@ -726,18 +732,27 @@
     const img = $("scan");
     const want = page || "";
     if (want) {
-      const loaded = decodeURI(img.src || "");
-      if (!loaded.endsWith(want) && !loaded.includes(encodeURI(want))) {
+      img.style.display = "";
+      const source = imageUrl(want);
+      if (img.src !== source) {
         img.onload = () => {
+          img.style.visibility = "visible";
+          $("filehint").textContent = `Ficheiro final: ${state.month.filename} (alfabético)`;
           layoutTunnel();
           if (!opts.keepFocus) focusField();
         };
-        img.src = want;
+        img.onerror = () => {
+          img.style.visibility = "hidden";
+          $("filehint").textContent = `Não foi possível carregar a página original: ${want}`;
+        };
+        img.style.visibility = "hidden";
+        img.src = source;
       } else {
         layoutTunnel();
       }
     } else {
-      // Clear image when no pages available (e.g., 2018)
+      // Hide the scan area when the selected month has no original page images.
+      img.style.display = "none";
       img.src = "";
       img.removeAttribute("src");
       layoutTunnel();
